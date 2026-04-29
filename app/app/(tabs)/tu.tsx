@@ -16,6 +16,13 @@ import { formatHandle, formatFriendCode } from '../../utils/format';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001';
 
+/** Risolve URL relativi (legacy locale) e URL assoluti (Firebase Storage). */
+function resolveMediaUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  return `${BASE_URL}${url}`;
+}
+
 type BudgetLevel = 'low' | 'medium' | 'high';
 const BUDGET_LABELS: Record<BudgetLevel, { label: string; icon: keyof typeof Ionicons.glyphMap }> = {
   low:    { label: 'Basso',   icon: 'wallet-outline'  },
@@ -159,7 +166,7 @@ export default function TuScreen() {
 
   const stats = activity?.stats ?? { likedCount: 0, checkinCount: 0, moodVoteCount: 0 };
   const preferredVibes = profile?.preferredVibes ?? [];
-  const avatarSrc = profile?.avatarUrl ? `${BASE_URL}${profile.avatarUrl}` : null;
+  const avatarSrc = resolveMediaUrl(profile?.avatarUrl);
   const displayName = profile?.displayName ?? null;
 
   return (

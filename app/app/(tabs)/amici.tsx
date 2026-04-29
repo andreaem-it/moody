@@ -157,12 +157,19 @@ export default function AmiciScreen() {
 
 // ─── Post card ────────────────────────────────────────────────────────────────
 
+/** Risolve URL relativi (legacy locale) e URL assoluti (Firebase Storage). */
+function resolveMediaUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  const BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001';
+  return `${BASE}${url}`;
+}
+
 function PostCard({ post, ownUserId, onDelete }: { post: Post; ownUserId: string; onDelete: (id: string) => void }) {
-  const BASE   = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001';
   const isOwn  = post.userId === ownUserId;
   const handle = formatHandle(post.userId);
   const displayName = post.authorDisplayName ?? null;
-  const avatarSrc   = post.authorAvatarUrl ? `${BASE}${post.authorAvatarUrl}` : null;
+  const avatarSrc   = resolveMediaUrl(post.authorAvatarUrl);
 
   return (
     <View style={pcStyles.card}>
@@ -198,9 +205,9 @@ function PostCard({ post, ownUserId, onDelete }: { post: Post; ownUserId: string
       )}
 
       {/* Media */}
-      {post.mediaUrl && (
+      {resolveMediaUrl(post.mediaUrl) && (
         <Image
-          source={{ uri: `${BASE}${post.mediaUrl}` }}
+          source={{ uri: resolveMediaUrl(post.mediaUrl)! }}
           style={pcStyles.media}
           resizeMode="cover"
         />
