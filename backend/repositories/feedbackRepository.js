@@ -1,37 +1,44 @@
 /**
- * feedbackRepository
- * PostgreSQL migration: replace getDb() with a pg client; keep same interface.
+ * feedbackRepository — Firestore implementation.
+ *
+ * `vibes` is denormalized from the event at creation time so that
+ * countSkipsForVibe can use Firestore's `array-contains` without a JOIN.
+ *
+ * Document structure (collection: 'feedback'):
+ *   id, eventId, userId, type, vibes (array), createdAt
  */
 
 const { v4: uuidv4 } = require('uuid');
-const { getDb } = require('../db/database');
+const { getDb }      = require('../db/database');
+
+const COL = 'feedback';
 
 const feedbackRepository = {
-  create(eventId, userId, type) {
-    const id = uuidv4();
+  /**
+   * @param {string}   eventId
+   * @param {string}   userId
+   * @param {string}   type
+   * @param {string[]} vibes  - Event's vibes array, denormalized for efficient skip queries.
+   */
+  async create(eventId, userId, type, vibes = []) {
+    const id  = uuidv4();
     const now = new Date().toISOString();
-    getDb()
-      .prepare('INSERT INTO feedback (id, eventId, userId, type, createdAt) VALUES (?, ?, ?, ?, ?)')
-      .run(id, eventId, userId, type, now);
-    return { id, eventId, userId, type, createdAt: now };
+    await getDb().collection(COL).doc(id).set({ id, eventId, userId, type, vibes, createdAt: now });
+    return { id, eventId, userId, type, vibes, createdAt: now };
   },
 
   /**
-   * Returns how many times `userId` has skipped events containing `vibe`.
-   * Used by profileService to detect repeated vibe aversion (3 skips → remove vibe).
-   *
-   * Note: vibes are stored as JSON strings like '["music","social"]',
-   * so the LIKE pattern `%"vibe"%` reliably matches the quoted value.
+   * Counts how many times `userId` has skipped events containing `vibe`.
+   * Relies on the denormalized `vibes` array field.
    */
-  countSkipsForVibe(userId, vibe) {
-    return getDb()
-      .prepare(`
-        SELECT COUNT(*) as c
-        FROM feedback f
-        INNER JOIN events e ON f.eventId = e.id
-        WHERE f.userId = ? AND f.type = 'skip' AND e.vibes LIKE ?
-      `)
-      .get(userId, `%"${vibe}"%`).c;
+  async countSkipsForVibe(userId, vibe) {
+    const snap = await getDb()
+      .collection(COL)
+      .where('userId', '==', userId)
+      .where('type',   '==', 'skip')
+      .where('vibes',  'array-contains', vibe)
+      .get();
+    return snap.size;
   },
 };
 

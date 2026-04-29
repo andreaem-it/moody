@@ -1,181 +1,185 @@
 /**
- * eventRepository
+ * eventRepository — Firestore implementation.
  *
- * All SQL for the `events` table lives here.
- * Business logic belongs in services/controllers — never in this file.
- *
- * PostgreSQL migration path:
- *   Replace getDb() calls with a pg Pool/Client; keep the same exported interface.
+ * Document structure (collection: 'events'):
+ *   id, title, description, date, time, location,
+ *   latitude, longitude, price, vibes (array), energyScore,
+ *   socialScore, sourceType, rawText, eventHash,
+ *   popularityBoost, createdAt, updatedAt
  */
 
-const { v4: uuidv4 } = require('uuid');
-const { getDb } = require('../db/database');
+const { v4: uuidv4 }        = require('uuid');
+const { getDb }             = require('../db/database');
+const { FieldValue }        = require('firebase-admin/firestore');
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+const COL = 'events';
 
-function normalizeHash(title, date, location) {
-  return `${title}${date}${location}`.toLowerCase().replace(/[^a-z0-9]/g, '');
-}
-
-function parse(row) {
-  if (!row) return null;
+function _parse(snap) {
+  if (!snap || !snap.exists) return null;
+  const data = snap.data();
   return {
-    ...row,
-    vibes: JSON.parse(row.vibes || '[]'),
-    popularityBoost: row.popularityBoost || 0,
+    ...data,
+    id: snap.id,
+    vibes: Array.isArray(data.vibes) ? data.vibes : [],
+    popularityBoost: data.popularityBoost || 0,
   };
 }
 
-// ─── Context helpers (used only internally by findByContext) ─────────────────
+function _normalizeHash(title, date, location) {
+  return `${title}${date}${location}`.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
 
-function todayUtc() {
+function _todayUtc() {
   return new Date().toISOString().split('T')[0];
 }
 
-function weekendDates() {
+function _weekendDates() {
   const now = new Date();
-  const day = now.getDay(); // 0=Sun, 1=Mon, … 6=Sat
-
-  // When today IS Sunday (day=0):  Saturday was yesterday (-1), Sunday is today (0).
-  // Any other day: next Saturday = +(6-day), next Sunday = +(7-day).
+  const day = now.getDay();
   const daysToSat = day === 0 ? -1 : 6 - day;
   const daysToSun = day === 0 ?  0 : 7 - day;
-
   const sat = new Date(now); sat.setDate(now.getDate() + daysToSat);
   const sun = new Date(now); sun.setDate(now.getDate() + daysToSun);
   return [sat.toISOString().split('T')[0], sun.toISOString().split('T')[0]];
 }
 
-// ─── Public API ───────────────────────────────────────────────────────────────
-
 const eventRepository = {
-  /** All events, sorted chronologically. */
-  findAll() {
-    return getDb()
-      .prepare('SELECT * FROM events ORDER BY date, time')
-      .all()
-      .map(parse);
+  async findAll() {
+    const snap = await getDb()
+      .collection(COL)
+      .orderBy('date')
+      .orderBy('time')
+      .get();
+    return snap.docs.map(_parse);
   },
 
-  findById(id) {
-    return parse(getDb().prepare('SELECT * FROM events WHERE id = ?').get(id));
+  async findById(id) {
+    const snap = await getDb().collection(COL).doc(id).get();
+    return _parse(snap);
   },
 
-  findByHash(hash) {
-    return parse(getDb().prepare('SELECT * FROM events WHERE eventHash = ?').get(hash));
+  async findByHash(hash) {
+    const snap = await getDb()
+      .collection(COL)
+      .where('eventHash', '==', hash)
+      .limit(1)
+      .get();
+    return snap.empty ? null : _parse(snap.docs[0]);
   },
 
-  /**
-   * Returns events filtered by context mode.
-   * Extracted here so controllers stay free of SQL.
-   */
-  findByContext(context) {
-    const db = getDb();
-    const today = todayUtc();
+  async findByContext(context) {
+    const db    = getDb();
+    const today = _todayUtc();
 
     if (context === 'tonight') {
-      return db.prepare('SELECT * FROM events WHERE date = ? ORDER BY time').all(today).map(parse);
+      const snap = await db
+        .collection(COL)
+        .where('date', '==', today)
+        .orderBy('time')
+        .get();
+      return snap.docs.map(_parse);
     }
 
     if (context === 'last-minute') {
-      const now = new Date();
-      const cutoff = new Date(now.getTime() + 4 * 60 * 60 * 1000);
+      const now        = new Date();
+      const cutoff     = new Date(now.getTime() + 4 * 60 * 60 * 1000);
       const currentTime = now.toTimeString().slice(0, 5);
-      const cutoffDate = cutoff.toISOString().split('T')[0];
-      const cutoffTime = cutoff.toTimeString().slice(0, 5);
+      const cutoffDate  = cutoff.toISOString().split('T')[0];
+      const cutoffTime  = cutoff.toTimeString().slice(0, 5);
 
       if (cutoffDate === today) {
-        return db
-          .prepare('SELECT * FROM events WHERE date = ? AND time >= ? AND time <= ? ORDER BY time')
-          .all(today, currentTime, cutoffTime)
-          .map(parse);
+        const snap = await db
+          .collection(COL)
+          .where('date', '==', today)
+          .where('time', '>=', currentTime)
+          .where('time', '<=', cutoffTime)
+          .orderBy('time')
+          .get();
+        return snap.docs.map(_parse);
       }
-      return db
-        .prepare(
-          'SELECT * FROM events WHERE (date = ? AND time >= ?) OR (date = ? AND time <= ?) ORDER BY date, time',
-        )
-        .all(today, currentTime, cutoffDate, cutoffTime)
-        .map(parse);
+
+      const [todaySnap, tomorrowSnap] = await Promise.all([
+        db.collection(COL).where('date', '==', today).where('time', '>=', currentTime).get(),
+        db.collection(COL).where('date', '==', cutoffDate).where('time', '<=', cutoffTime).get(),
+      ]);
+      return [...todaySnap.docs, ...tomorrowSnap.docs].map(_parse);
     }
 
     if (context === 'weekend') {
-      const [sat, sun] = weekendDates();
-      return db
-        .prepare('SELECT * FROM events WHERE date IN (?, ?) ORDER BY date, time')
-        .all(sat, sun)
-        .map(parse);
+      const [sat, sun] = _weekendDates();
+      const [satSnap, sunSnap] = await Promise.all([
+        db.collection(COL).where('date', '==', sat).orderBy('time').get(),
+        db.collection(COL).where('date', '==', sun).orderBy('time').get(),
+      ]);
+      return [...satSnap.docs, ...sunSnap.docs].map(_parse);
     }
 
-    // Fallback: everything from today onward
-    return db
-      .prepare('SELECT * FROM events WHERE date >= ? ORDER BY date, time')
-      .all(today)
-      .map(parse);
+    // Fallback: from today onward
+    const snap = await db
+      .collection(COL)
+      .where('date', '>=', today)
+      .orderBy('date')
+      .orderBy('time')
+      .get();
+    return snap.docs.map(_parse);
   },
 
-  /**
-   * Inserts a new event. Caller must pass already-enriched vibes/scores.
-   * Returns the full created row.
-   */
-  create({ title, description, date, time, location, latitude, longitude, price, vibes = [], energyScore = 0.5, socialScore = 0.5, sourceType = 'manual', rawText = null }) {
-    const id = uuidv4();
+  async create({ title, description, date, time, location, latitude, longitude, price, vibes = [], energyScore = 0.5, socialScore = 0.5, sourceType = 'manual', rawText = null }) {
+    const id        = uuidv4();
+    const now       = new Date().toISOString();
+    const eventHash = _normalizeHash(title, date, location);
+
+    const data = {
+      id, title,
+      description:    description ?? null,
+      date, time, location,
+      latitude:       latitude    ?? null,
+      longitude:      longitude   ?? null,
+      price:          price       ?? null,
+      vibes,
+      energyScore,
+      socialScore,
+      sourceType,
+      rawText:        rawText     ?? null,
+      eventHash,
+      popularityBoost: 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await getDb().collection(COL).doc(id).set(data);
+    return data;
+  },
+
+  async incrementPopularityBoost(id) {
     const now = new Date().toISOString();
-    const eventHash = normalizeHash(title, date, location);
-
-    getDb()
-      .prepare(`
-        INSERT INTO events
-          (id, title, description, date, time, location, latitude, longitude, price,
-           vibes, energyScore, socialScore, sourceType, rawText, eventHash, popularityBoost, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
-      `)
-      .run(
-        id, title, description ?? null, date, time, location,
-        latitude ?? null, longitude ?? null, price ?? null,
-        JSON.stringify(vibes), energyScore, socialScore,
-        sourceType, rawText ?? null, eventHash, now, now,
-      );
-
+    await getDb().collection(COL).doc(id).update({
+      popularityBoost: FieldValue.increment(1),
+      updatedAt: now,
+    });
     return this.findById(id);
   },
 
-  /** Increments popularityBoost when a duplicate hash is detected. */
-  incrementPopularityBoost(id) {
-    const now = new Date().toISOString();
-    getDb()
-      .prepare('UPDATE events SET popularityBoost = popularityBoost + 1, updatedAt = ? WHERE id = ?')
-      .run(now, id);
-    return this.findById(id);
-  },
-
-  /** Generic partial update — only touches supplied fields. */
-  update(id, data) {
+  async update(id, data) {
     const allowed = [
       'title', 'description', 'date', 'time', 'location',
       'latitude', 'longitude', 'price', 'vibes',
       'energyScore', 'socialScore', 'sourceType', 'rawText',
     ];
-    const updates = [];
-    const values = [];
+    const updates = { updatedAt: new Date().toISOString() };
 
     for (const key of allowed) {
-      if (key in data) {
-        updates.push(`${key} = ?`);
-        values.push(key === 'vibes' ? JSON.stringify(data[key]) : data[key]);
-      }
+      if (key in data) updates[key] = data[key];
     }
-    if (!updates.length) return this.findById(id);
 
-    const now = new Date().toISOString();
-    updates.push('updatedAt = ?');
-    values.push(now, id);
-
-    getDb().prepare(`UPDATE events SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+    if (Object.keys(updates).length > 1) {
+      await getDb().collection(COL).doc(id).update(updates);
+    }
     return this.findById(id);
   },
 
-  delete(id) {
-    getDb().prepare('DELETE FROM events WHERE id = ?').run(id);
+  async delete(id) {
+    await getDb().collection(COL).doc(id).delete();
   },
 };
 

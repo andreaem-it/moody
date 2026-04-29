@@ -1,14 +1,16 @@
 /**
  * profileController
- * Exposes the adaptive user profile for inspection and update.
+ * Exposes the adaptive user profile for inspection and meta updates.
+ * Avatar uploads are stored in Firebase Storage.
  */
 
-const profileRepository = require('../repositories/profileRepository');
+const profileRepository  = require('../repositories/profileRepository');
+const { uploadBuffer, avatarPath } = require('../services/storageService');
 
 async function getProfile(req, res, next) {
   try {
     const { userId } = req.params;
-    const profile = profileRepository.createIfNotExists(userId);
+    const profile = await profileRepository.createIfNotExists(userId);
     res.json(profile);
   } catch (err) {
     next(err);
@@ -19,14 +21,13 @@ async function getProfile(req, res, next) {
  * PUT /profile/:userId
  * Accepts multipart/form-data with optional fields:
  *   - displayName (text)
- *   - avatar      (file — handled by multer in the route)
+ *   - avatar      (file — handled by multer memory storage in the route)
  */
 async function updateProfile(req, res, next) {
   try {
     const { userId } = req.params;
 
-    // Ensure the profile row exists before updating
-    profileRepository.createIfNotExists(userId);
+    await profileRepository.createIfNotExists(userId);
 
     const updates = {};
 
@@ -35,10 +36,11 @@ async function updateProfile(req, res, next) {
     }
 
     if (req.file) {
-      updates.avatarUrl = `/uploads/${req.file.filename}`;
+      const storagePath    = avatarPath(userId, req.file.mimetype);
+      updates.avatarUrl    = await uploadBuffer(req.file.buffer, req.file.mimetype, storagePath);
     }
 
-    const profile = profileRepository.updateMeta(userId, updates);
+    const profile = await profileRepository.updateMeta(userId, updates);
     res.json(profile);
   } catch (err) {
     next(err);

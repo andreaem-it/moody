@@ -1,34 +1,15 @@
 /**
  * profileService
  *
- * Encapsulates the business rules for updating a user profile based on
- * event interactions. All persistence is delegated to repositories.
- *
- * No `db` parameter anywhere — services are decoupled from storage.
+ * All repository calls are async — callers must await this service's functions.
  */
 
-const profileRepository = require('../repositories/profileRepository');
+const profileRepository  = require('../repositories/profileRepository');
 const feedbackRepository = require('../repositories/feedbackRepository');
 
-// ─── Public API ───────────────────────────────────────────────────────────────
-
-/**
- * Updates the user profile based on a feedback action.
- *
- * Signal strengths:
- *   like          → strong positive (+10% energy/social, add vibes)
- *   check-in      → very strong positive (+15%, add vibes)  [see updateProfileFromCheckin]
- *   wrong_vibe    → strong negative (remove vibes, −8% energy/social)
- *   not_for_me    → moderate negative (remove vibes)
- *   too_far       → spatial negative (−12% maxDistanceKm)
- *   too_expensive → budget downgrade
- *   skip          → weak; but 3 skips on same vibe → remove it
- */
-function updateProfileFromFeedback(userId, feedbackType, event) {
-  const profile = profileRepository.createIfNotExists(userId);
-
-  // event.vibes is always an array at this point (parsed by repository or controller)
-  const eventVibes = Array.isArray(event.vibes) ? event.vibes : JSON.parse(event.vibes || '[]');
+async function updateProfileFromFeedback(userId, feedbackType, event) {
+  const profile   = await profileRepository.createIfNotExists(userId);
+  const eventVibes = Array.isArray(event.vibes) ? event.vibes : [];
   const preferredVibes = new Set(profile.preferredVibes);
 
   let { maxDistanceKm, budgetLevel, energyPreference, socialPreference, explorationRate } = profile;
@@ -59,14 +40,14 @@ function updateProfileFromFeedback(userId, feedbackType, event) {
       break;
 
     case 'skip':
-      applySkipPattern(userId, eventVibes, preferredVibes);
+      await applySkipPattern(userId, eventVibes, preferredVibes);
       break;
 
     default:
       break;
   }
 
-  profileRepository.update(userId, {
+  await profileRepository.update(userId, {
     preferredVibes: [...preferredVibes],
     maxDistanceKm,
     budgetLevel,
@@ -76,18 +57,15 @@ function updateProfileFromFeedback(userId, feedbackType, event) {
   });
 }
 
-/**
- * Very strong positive signal when a user checks in.
- */
-function updateProfileFromCheckin(userId, event) {
-  const profile = profileRepository.createIfNotExists(userId);
-  const eventVibes = Array.isArray(event.vibes) ? event.vibes : JSON.parse(event.vibes || '[]');
+async function updateProfileFromCheckin(userId, event) {
+  const profile    = await profileRepository.createIfNotExists(userId);
+  const eventVibes = Array.isArray(event.vibes) ? event.vibes : [];
   const preferredVibes = new Set(profile.preferredVibes);
 
   eventVibes.forEach((v) => preferredVibes.add(v));
 
-  profileRepository.update(userId, {
-    preferredVibes: [...preferredVibes],
+  await profileRepository.update(userId, {
+    preferredVibes:   [...preferredVibes],
     maxDistanceKm:    profile.maxDistanceKm,
     budgetLevel:      profile.budgetLevel,
     energyPreference: clamp(profile.energyPreference + (event.energyScore || 0) * 0.15),
@@ -96,15 +74,9 @@ function updateProfileFromCheckin(userId, event) {
   });
 }
 
-// ─── Internal helpers ─────────────────────────────────────────────────────────
-
-/**
- * After 3 skips on events containing a given vibe, remove that vibe from the profile.
- * The current skip must already be persisted before this is called.
- */
-function applySkipPattern(userId, eventVibes, preferredVibes) {
+async function applySkipPattern(userId, eventVibes, preferredVibes) {
   for (const vibe of eventVibes) {
-    const skipCount = feedbackRepository.countSkipsForVibe(userId, vibe);
+    const skipCount = await feedbackRepository.countSkipsForVibe(userId, vibe);
     if (skipCount >= 3) {
       preferredVibes.delete(vibe);
     }
@@ -117,7 +89,7 @@ function clamp(val, min = 0, max = 1) {
 
 function decreaseBudget(level) {
   const levels = ['low', 'medium', 'high'];
-  const idx = levels.indexOf(level);
+  const idx    = levels.indexOf(level);
   return idx > 0 ? levels[idx - 1] : 'low';
 }
 

@@ -1,24 +1,16 @@
-const path = require('path');
-const fs = require('fs');
+/**
+ * uploadController
+ * Handles image upload for OCR-based event creation.
+ * Uses multer memory storage — the buffer is passed directly to the OCR service.
+ * The file is NOT persisted to Firebase Storage here (it's a temporary OCR scan).
+ */
+
 const multer = require('multer');
 const { extractTextFromImage, parseEventFromText } = require('../services/ocrService');
 const { enrichEvent } = require('../services/enrichmentService');
 
-// ─── Multer config ───────────────────────────────────────────────────────────
-
-const uploadsDir = path.join(__dirname, '..', 'uploads');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadsDir),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-  },
-});
-
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
   fileFilter: (_req, file, cb) => {
     const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic'];
@@ -27,20 +19,16 @@ const upload = multer({
   },
 });
 
-// ─── Controller ──────────────────────────────────────────────────────────────
-
 async function uploadAndProcess(req, res, next) {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No image file provided' });
     }
 
-    const rawText = await extractTextFromImage(req.file.path);
-    const parsed = parseEventFromText(rawText);
+    // Pass null — the mock OCR doesn't use the path; replace with buffer path when real OCR is integrated
+    const rawText = await extractTextFromImage(null);
+    const parsed  = parseEventFromText(rawText);
     const enriched = enrichEvent({ ...parsed, rawText });
-
-    // Clean up temp file (non-blocking)
-    fs.unlink(req.file.path, () => {});
 
     res.json({
       title:       parsed.title,
@@ -54,7 +42,7 @@ async function uploadAndProcess(req, res, next) {
       socialScore: enriched.socialScore,
       sourceType:  'ocr',
       rawText,
-      confidence:  parsed.confidence,   // 0–1 mock OCR confidence score
+      confidence:  parsed.confidence,
     });
   } catch (err) {
     next(err);

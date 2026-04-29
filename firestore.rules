@@ -1,0 +1,22 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Events: tutti possono leggere, solo autenticati possono creare
+    match /events/{eventId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.createdBy;
+    }
+    // Moods: leggibili da tutti, modificabili solo dal proprietario
+    match /moods/{moodId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    // Users: profilo leggibile da tutti, modificabile solo dal proprietario
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

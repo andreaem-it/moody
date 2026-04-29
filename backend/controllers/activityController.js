@@ -1,55 +1,57 @@
 /**
  * activityController
  * Returns events the user has interacted with (liked, checked-in, mood vote).
- * Used by the "Vai" tab to show the user's personal event list.
+ * Used by the "Vai" tab.
  */
 
-const { getDb } = require('../db/database');
-const eventRepository = require('../repositories/eventRepository');
+const { getDb }         = require('../db/database');
+const eventRepository   = require('../repositories/eventRepository');
 const checkinRepository = require('../repositories/checkinRepository');
-const moodRepository = require('../repositories/moodRepository');
+const moodRepository    = require('../repositories/moodRepository');
 
 async function getUserActivity(req, res, next) {
   try {
     const { userId } = req.params;
+    const db         = getDb();
 
-    // Events liked
-    const likedRows = getDb()
-      .prepare(`SELECT DISTINCT eventId FROM feedback WHERE userId = ? AND type = 'like' ORDER BY createdAt DESC`)
-      .all(userId);
+    const [likedSnap, checkinSnap, moodSnap] = await Promise.all([
+      db.collection('feedback')
+        .where('userId', '==', userId)
+        .where('type',   '==', 'like')
+        .get(),
+      db.collection('checkins')
+        .where('userId', '==', userId)
+        .orderBy('createdAt', 'desc')
+        .get(),
+      db.collection('moods')
+        .where('userId', '==', userId)
+        .get(),
+    ]);
 
-    // Events checked-in
-    const checkinRows = getDb()
-      .prepare(`SELECT DISTINCT eventId, createdAt FROM checkins WHERE userId = ? ORDER BY createdAt DESC`)
-      .all(userId);
-
-    // Merge unique event IDs preserving order
-    const checkinIds = new Set(checkinRows.map((r) => r.eventId));
-    const likedIds   = new Set(likedRows.map((r) => r.eventId));
+    const checkinIds = new Set(checkinSnap.docs.map((d) => d.data().eventId));
+    const likedIds   = new Set(likedSnap.docs.map((d) => d.data().eventId));
     const allIds     = [...new Set([...checkinIds, ...likedIds])];
 
-    const events = allIds
-      .map((id) => eventRepository.findById(id))
-      .filter(Boolean)
-      .map((event) => ({
+    const events = (
+      await Promise.all(allIds.map((id) => eventRepository.findById(id)))
+    ).filter(Boolean);
+
+    const enriched = await Promise.all(
+      events.map(async (event) => ({
         ...event,
         isCheckedIn: checkinIds.has(event.id),
         isLiked:     likedIds.has(event.id),
-        peopleCount: checkinRepository.countByEvent(event.id),
-        ...moodRepository.getBreakdown(event.id),
-      }));
-
-    // Stats summary
-    const moodVoteCount = getDb()
-      .prepare(`SELECT COUNT(*) as c FROM moods WHERE userId = ?`)
-      .get(userId).c;
+        peopleCount: await checkinRepository.countByEvent(event.id),
+        ...await moodRepository.getBreakdown(event.id),
+      })),
+    );
 
     res.json({
-      events,
+      events: enriched,
       stats: {
         likedCount:    likedIds.size,
         checkinCount:  checkinIds.size,
-        moodVoteCount,
+        moodVoteCount: moodSnap.size,
       },
     });
   } catch (err) {

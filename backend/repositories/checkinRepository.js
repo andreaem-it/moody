@@ -1,43 +1,49 @@
 /**
- * checkinRepository
- * PostgreSQL migration: replace getDb() with a pg client; keep same interface.
+ * checkinRepository — Firestore implementation.
+ *
+ * Document structure (collection: 'checkins'):
+ *   id, eventId, userId, createdAt
  */
 
 const { v4: uuidv4 } = require('uuid');
-const { getDb } = require('../db/database');
+const { getDb }      = require('../db/database');
+
+const COL = 'checkins';
 
 const checkinRepository = {
-  create(eventId, userId) {
-    const id = uuidv4();
+  async create(eventId, userId) {
+    const id  = uuidv4();
     const now = new Date().toISOString();
-    getDb()
-      .prepare('INSERT INTO checkins (id, eventId, userId, createdAt) VALUES (?, ?, ?, ?)')
-      .run(id, eventId, userId, now);
+    await getDb().collection(COL).doc(id).set({ id, eventId, userId, createdAt: now });
     return { id, eventId, userId, createdAt: now };
   },
 
-  existsByEventAndUser(eventId, userId) {
-    const row = getDb()
-      .prepare('SELECT id FROM checkins WHERE eventId = ? AND userId = ?')
-      .get(eventId, userId);
-    return !!row;
+  async existsByEventAndUser(eventId, userId) {
+    const snap = await getDb()
+      .collection(COL)
+      .where('eventId', '==', eventId)
+      .where('userId',  '==', userId)
+      .limit(1)
+      .get();
+    return !snap.empty;
   },
 
-  countByEvent(eventId) {
-    return getDb()
-      .prepare('SELECT COUNT(*) as c FROM checkins WHERE eventId = ?')
-      .get(eventId).c;
+  async countByEvent(eventId) {
+    const snap = await getDb()
+      .collection(COL)
+      .where('eventId', '==', eventId)
+      .get();
+    return snap.size;
   },
 
-  /**
-   * Returns the number of checkins in the last `minutes` minutes.
-   * Used for trending score and LiveLayer momentum.
-   */
-  countRecent(eventId, minutes) {
+  async countRecent(eventId, minutes) {
     const since = new Date(Date.now() - minutes * 60 * 1000).toISOString();
-    return getDb()
-      .prepare('SELECT COUNT(*) as c FROM checkins WHERE eventId = ? AND createdAt >= ?')
-      .get(eventId, since).c;
+    const snap  = await getDb()
+      .collection(COL)
+      .where('eventId',   '==', eventId)
+      .where('createdAt', '>=', since)
+      .get();
+    return snap.size;
   },
 };
 

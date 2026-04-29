@@ -1,29 +1,40 @@
-const Database = require('better-sqlite3');
-const path = require('path');
+const { initializeApp, cert, getApps } = require('firebase-admin/app');
+const { getFirestore }                 = require('firebase-admin/firestore');
+const { getStorage }                   = require('firebase-admin/storage');
 
-let db;
+let _db;
+let _bucket;
 
 function initializeDatabase() {
-  if (db) return db;
+  if (_db) return _db;
 
-  const dbPath = path.join(__dirname, '..', 'moody.db');
-  db = new Database(dbPath);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
+  if (!getApps().length) {
+    initializeApp({
+      credential: cert({
+        projectId:   process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey:  process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      }),
+      storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+    });
+  }
 
-  return db;
+  _db = getFirestore();
+  _db.settings({ ignoreUndefinedProperties: true });
+  _bucket = getStorage().bucket();
+
+  console.log('✅ Firebase Admin SDK initialized');
+  return _db;
 }
 
-/** Primary accessor used by repositories — always returns initialised instance. */
 function getDb() {
-  if (!db) return initializeDatabase();
-  return db;
+  if (!_db) initializeDatabase();
+  return _db;
 }
 
-/** Wraps a function inside a better-sqlite3 transaction. */
-function transaction(fn) {
-  return getDb().transaction(fn);
+function getBucket() {
+  if (!_bucket) initializeDatabase();
+  return _bucket;
 }
 
-// getDatabase kept for backward compatibility
-module.exports = { initializeDatabase, getDatabase: getDb, getDb, transaction };
+module.exports = { initializeDatabase, getDatabase: getDb, getDb, getBucket };

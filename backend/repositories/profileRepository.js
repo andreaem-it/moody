@@ -1,16 +1,16 @@
 /**
- * profileRepository
- * PostgreSQL migration: replace getDb() with a pg client; keep same interface.
+ * profileRepository — Firestore implementation.
  *
- * Note: preferredVibes is stored as JSON text; this repository parses it
- * automatically so callers always receive/pass JavaScript arrays.
+ * Document ID: userId (collection: 'users').
+ * preferredVibes is stored as a native Firestore array — no JSON serialisation needed.
  */
 
-const { v4: uuidv4 } = require('uuid');
 const { getDb } = require('../db/database');
 
+const COL = 'users';
+
 const DEFAULTS = {
-  preferredVibes:   '[]',
+  preferredVibes:   [],
   maxDistanceKm:    20,
   budgetLevel:      'medium',
   energyPreference: 0.5,
@@ -18,89 +18,68 @@ const DEFAULTS = {
   explorationRate:  0.3,
 };
 
-function parse(row) {
-  if (!row) return null;
+function _parse(snap) {
+  if (!snap || !snap.exists) return null;
+  const data = snap.data();
   return {
-    ...row,
-    preferredVibes: JSON.parse(row.preferredVibes || '[]'),
-    displayName: row.displayName ?? null,
-    avatarUrl:   row.avatarUrl   ?? null,
+    ...data,
+    preferredVibes: Array.isArray(data.preferredVibes) ? data.preferredVibes : [],
+    displayName:    data.displayName ?? null,
+    avatarUrl:      data.avatarUrl   ?? null,
   };
 }
 
 const profileRepository = {
-  getByUser(userId) {
-    return parse(getDb().prepare('SELECT * FROM user_profiles WHERE userId = ?').get(userId));
+  async getByUser(userId) {
+    const snap = await getDb().collection(COL).doc(userId).get();
+    return _parse(snap);
   },
 
-  /**
-   * Returns existing profile or creates a default one.
-   * Always returns a parsed profile (preferredVibes as array).
-   */
-  createIfNotExists(userId) {
-    const existing = this.getByUser(userId);
-    if (existing) return existing;
+  async createIfNotExists(userId) {
+    const ref  = getDb().collection(COL).doc(userId);
+    const snap = await ref.get();
+    if (snap.exists) return _parse(snap);
 
-    const id = uuidv4();
+    const now  = new Date().toISOString();
+    const data = {
+      userId,
+      ...DEFAULTS,
+      displayName: null,
+      avatarUrl:   null,
+      createdAt:   now,
+      updatedAt:   now,
+    };
+    // merge: true prevents overwriting a doc created concurrently
+    await ref.set(data, { merge: true });
+    return data;
+  },
+
+  async update(userId, { preferredVibes, maxDistanceKm, budgetLevel, energyPreference, socialPreference, explorationRate }) {
     const now = new Date().toISOString();
-    getDb()
-      .prepare(`
-        INSERT INTO user_profiles
-          (id, userId, preferredVibes, maxDistanceKm, budgetLevel,
-           energyPreference, socialPreference, explorationRate, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `)
-      .run(
-        id, userId,
-        DEFAULTS.preferredVibes, DEFAULTS.maxDistanceKm, DEFAULTS.budgetLevel,
-        DEFAULTS.energyPreference, DEFAULTS.socialPreference, DEFAULTS.explorationRate,
-        now, now,
-      );
-
+    await getDb().collection(COL).doc(userId).update({
+      preferredVibes:   preferredVibes   ?? [],
+      maxDistanceKm,
+      budgetLevel,
+      energyPreference,
+      socialPreference,
+      explorationRate:  explorationRate  ?? DEFAULTS.explorationRate,
+      updatedAt: now,
+    });
     return this.getByUser(userId);
   },
 
-  /**
-   * Full profile update (adaptive fields). Pass any subset of profile fields.
-   * `preferredVibes` must be a JavaScript array — it is serialised here.
-   */
-  update(userId, { preferredVibes, maxDistanceKm, budgetLevel, energyPreference, socialPreference, explorationRate }) {
-    const now = new Date().toISOString();
-    getDb()
-      .prepare(`
-        UPDATE user_profiles
-        SET preferredVibes = ?, maxDistanceKm = ?, budgetLevel = ?,
-            energyPreference = ?, socialPreference = ?, explorationRate = ?, updatedAt = ?
-        WHERE userId = ?
-      `)
-      .run(
-        JSON.stringify(preferredVibes ?? []),
-        maxDistanceKm, budgetLevel,
-        energyPreference, socialPreference,
-        explorationRate ?? DEFAULTS.explorationRate,
-        now, userId,
-      );
-
-    return this.getByUser(userId);
-  },
-
-  /**
-   * Update display name and/or avatar URL only.
-   * Pass only the fields you want to change (both are optional).
-   */
-  updateMeta(userId, { displayName, avatarUrl } = {}) {
-    const now = new Date().toISOString();
-    const db  = getDb();
+  async updateMeta(userId, { displayName, avatarUrl } = {}) {
+    const now     = new Date().toISOString();
+    const updates = { updatedAt: now };
 
     if (displayName !== undefined) {
-      db.prepare('UPDATE user_profiles SET displayName = ?, updatedAt = ? WHERE userId = ?')
-        .run(displayName === '' ? null : displayName.trim().slice(0, 50), now, userId);
+      updates.displayName = displayName === '' ? null : String(displayName).trim().slice(0, 50);
     }
     if (avatarUrl !== undefined) {
-      db.prepare('UPDATE user_profiles SET avatarUrl = ?, updatedAt = ? WHERE userId = ?')
-        .run(avatarUrl, now, userId);
+      updates.avatarUrl = avatarUrl;
     }
 
+    await getDb().collection(COL).doc(userId).update(updates);
     return this.getByUser(userId);
   },
 };

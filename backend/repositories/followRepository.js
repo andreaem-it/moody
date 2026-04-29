@@ -1,50 +1,64 @@
-const { v4: uuidv4 } = require('uuid');
+/**
+ * followRepository — Firestore implementation.
+ *
+ * Document ID: `${followerId}_${followingId}` — O(1) follow/unfollow/check.
+ *
+ * Document structure (collection: 'follows'):
+ *   followerId, followingId, createdAt
+ */
+
 const { getDb } = require('../db/database');
 
+const COL = 'follows';
+
 const followRepository = {
-  follow(followerId, followingId) {
-    const existing = getDb()
-      .prepare('SELECT id FROM follows WHERE followerId = ? AND followingId = ?')
-      .get(followerId, followingId);
-    if (existing) return { alreadyFollowing: true };
+  async follow(followerId, followingId) {
+    const docId = `${followerId}_${followingId}`;
+    const ref   = getDb().collection(COL).doc(docId);
+    const snap  = await ref.get();
 
-    const id = uuidv4();
-    getDb()
-      .prepare('INSERT INTO follows (id, followerId, followingId, createdAt) VALUES (?, ?, ?, ?)')
-      .run(id, followerId, followingId, new Date().toISOString());
-    return { id, followerId, followingId };
+    if (snap.exists) return { alreadyFollowing: true };
+
+    const now = new Date().toISOString();
+    await ref.set({ followerId, followingId, createdAt: now });
+    return { id: docId, followerId, followingId };
   },
 
-  unfollow(followerId, followingId) {
-    getDb()
-      .prepare('DELETE FROM follows WHERE followerId = ? AND followingId = ?')
-      .run(followerId, followingId);
+  async unfollow(followerId, followingId) {
+    await getDb().collection(COL).doc(`${followerId}_${followingId}`).delete();
   },
 
-  isFollowing(followerId, followingId) {
-    return !!getDb()
-      .prepare('SELECT id FROM follows WHERE followerId = ? AND followingId = ?')
-      .get(followerId, followingId);
+  async isFollowing(followerId, followingId) {
+    const snap = await getDb().collection(COL).doc(`${followerId}_${followingId}`).get();
+    return snap.exists;
   },
 
-  getFollowing(userId) {
-    return getDb()
-      .prepare('SELECT followingId as userId, createdAt FROM follows WHERE followerId = ? ORDER BY createdAt DESC')
-      .all(userId);
+  async getFollowing(userId) {
+    const snap = await getDb()
+      .collection(COL)
+      .where('followerId', '==', userId)
+      .orderBy('createdAt', 'desc')
+      .get();
+    return snap.docs.map((d) => ({ userId: d.data().followingId, createdAt: d.data().createdAt }));
   },
 
-  getFollowers(userId) {
-    return getDb()
-      .prepare('SELECT followerId as userId, createdAt FROM follows WHERE followingId = ? ORDER BY createdAt DESC')
-      .all(userId);
+  async getFollowers(userId) {
+    const snap = await getDb()
+      .collection(COL)
+      .where('followingId', '==', userId)
+      .orderBy('createdAt', 'desc')
+      .get();
+    return snap.docs.map((d) => ({ userId: d.data().followerId, createdAt: d.data().createdAt }));
   },
 
-  countFollowing(userId) {
-    return getDb().prepare('SELECT COUNT(*) as c FROM follows WHERE followerId = ?').get(userId).c;
+  async countFollowing(userId) {
+    const snap = await getDb().collection(COL).where('followerId', '==', userId).get();
+    return snap.size;
   },
 
-  countFollowers(userId) {
-    return getDb().prepare('SELECT COUNT(*) as c FROM follows WHERE followingId = ?').get(userId).c;
+  async countFollowers(userId) {
+    const snap = await getDb().collection(COL).where('followingId', '==', userId).get();
+    return snap.size;
   },
 };
 

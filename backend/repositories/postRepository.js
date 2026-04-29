@@ -1,70 +1,97 @@
-const { v4: uuidv4 } = require('uuid');
-const { getDb } = require('../db/database');
+/**
+ * postRepository — Firestore implementation.
+ *
+ * Author and event metadata are denormalized at write time so that
+ * getFeedForUser and getByUser don't require N+1 queries.
+ *
+ * Document structure (collection: 'posts'):
+ *   id, userId, eventId, mediaUrl, mediaType, caption, createdAt,
+ *   eventTitle, eventLocation, eventDate,
+ *   authorDisplayName, authorAvatarUrl
+ */
 
-function parse(row) {
-  if (!row) return null;
-  return row;
+const { v4: uuidv4 } = require('uuid');
+const { getDb }      = require('../db/database');
+
+const COL = 'posts';
+
+function _parse(snap) {
+  if (!snap || !snap.exists) return null;
+  return { ...snap.data(), id: snap.id };
 }
 
 const postRepository = {
-  create({ userId, eventId = null, mediaUrl = null, mediaType = 'photo', caption = '' }) {
-    const id = uuidv4();
+  async create({ userId, eventId = null, mediaUrl = null, mediaType = 'photo', caption = '',
+                 eventTitle = null, eventLocation = null, eventDate = null,
+                 authorDisplayName = null, authorAvatarUrl = null }) {
+    const id  = uuidv4();
     const now = new Date().toISOString();
-    getDb()
-      .prepare(`
-        INSERT INTO posts (id, userId, eventId, mediaUrl, mediaType, caption, createdAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `)
-      .run(id, userId, eventId, mediaUrl, mediaType, caption, now);
-    return this.findById(id);
+
+    const data = {
+      id, userId,
+      eventId:          eventId          ?? null,
+      mediaUrl:         mediaUrl         ?? null,
+      mediaType,
+      caption,
+      createdAt:        now,
+      eventTitle:       eventTitle       ?? null,
+      eventLocation:    eventLocation    ?? null,
+      eventDate:        eventDate        ?? null,
+      authorDisplayName: authorDisplayName ?? null,
+      authorAvatarUrl:  authorAvatarUrl  ?? null,
+    };
+
+    await getDb().collection(COL).doc(id).set(data);
+    return data;
   },
 
-  findById(id) {
-    return parse(getDb().prepare('SELECT * FROM posts WHERE id = ?').get(id));
+  async findById(id) {
+    const snap = await getDb().collection(COL).doc(id).get();
+    return _parse(snap);
   },
 
-  /** All posts from users that `userId` follows + own posts, newest first. */
-  getFeedForUser(userId, limit = 50) {
-    return getDb()
-      .prepare(`
-        SELECT p.*,
-               e.title    AS eventTitle,
-               e.location AS eventLocation,
-               e.date     AS eventDate,
-               up.displayName AS authorDisplayName,
-               up.avatarUrl   AS authorAvatarUrl
-        FROM posts p
-        LEFT JOIN events        e  ON p.eventId = e.id
-        LEFT JOIN user_profiles up ON p.userId  = up.userId
-        WHERE p.userId IN (SELECT followingId FROM follows WHERE followerId = ?)
-           OR p.userId = ?
-        ORDER BY p.createdAt DESC
-        LIMIT ?
-      `)
-      .all(userId, userId, limit);
+  /**
+   * Returns posts from users that `userId` follows + own posts (newest first).
+   * Firestore `whereIn` supports up to 30 values; for social graphs > 30,
+   * cursor-based pagination with multiple queries is recommended.
+   */
+  async getFeedForUser(userId, limit = 50) {
+    const db = getDb();
+
+    // Fetch the IDs of users this user follows
+    const followsSnap = await db
+      .collection('follows')
+      .where('followerId', '==', userId)
+      .get();
+
+    const followingIds = followsSnap.docs.map((d) => d.data().followingId);
+    const authorIds    = [...new Set([userId, ...followingIds])].slice(0, 30);
+
+    const snap = await db
+      .collection(COL)
+      .where('userId', 'in', authorIds)
+      .orderBy('createdAt', 'desc')
+      .limit(limit)
+      .get();
+
+    return snap.docs.map((d) => ({ ...d.data(), id: d.id }));
   },
 
-  /** Posts by a specific user, newest first. */
-  getByUser(userId) {
-    return getDb()
-      .prepare(`
-        SELECT p.*,
-               e.title    AS eventTitle,
-               e.location AS eventLocation,
-               e.date     AS eventDate,
-               up.displayName AS authorDisplayName,
-               up.avatarUrl   AS authorAvatarUrl
-        FROM posts p
-        LEFT JOIN events        e  ON p.eventId = e.id
-        LEFT JOIN user_profiles up ON p.userId  = up.userId
-        WHERE p.userId = ?
-        ORDER BY p.createdAt DESC
-      `)
-      .all(userId);
+  async getByUser(userId) {
+    const snap = await getDb()
+      .collection(COL)
+      .where('userId', '==', userId)
+      .orderBy('createdAt', 'desc')
+      .get();
+    return snap.docs.map((d) => ({ ...d.data(), id: d.id }));
   },
 
-  delete(id, userId) {
-    getDb().prepare('DELETE FROM posts WHERE id = ? AND userId = ?').run(id, userId);
+  async delete(id, userId) {
+    const ref  = getDb().collection(COL).doc(id);
+    const snap = await ref.get();
+    if (snap.exists && snap.data().userId === userId) {
+      await ref.delete();
+    }
   },
 };
 
