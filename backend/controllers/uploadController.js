@@ -43,17 +43,18 @@ async function uploadAndProcess(req, res, next) {
     fs.unlink(req.file.path, () => {});
 
     res.json({
-      title: parsed.title,
+      title:       parsed.title,
       description: parsed.description,
-      date: parsed.date,
-      time: parsed.time,
-      location: parsed.location,
-      price: parsed.price,
-      vibes: enriched.vibes,
+      date:        parsed.date,
+      time:        parsed.time,
+      location:    parsed.location,
+      price:       parsed.price,
+      vibes:       enriched.vibes,
       energyScore: enriched.energyScore,
       socialScore: enriched.socialScore,
-      sourceType: 'ocr',
+      sourceType:  'ocr',
       rawText,
+      confidence:  parsed.confidence,   // 0–1 mock OCR confidence score
     });
   } catch (err) {
     next(err);

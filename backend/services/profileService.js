@@ -1,57 +1,43 @@
-const { v4: uuidv4 } = require('uuid');
-
-const DEFAULT_PROFILE = {
-  preferredVibes: '[]',
-  maxDistanceKm: 20,
-  budgetLevel: 'medium',
-  energyPreference: 0.5,
-  socialPreference: 0.5,
-  explorationRate: 0.3,
-};
-
 /**
- * Returns the user profile, creating a default one if it does not exist.
+ * profileService
+ *
+ * Encapsulates the business rules for updating a user profile based on
+ * event interactions. All persistence is delegated to repositories.
+ *
+ * No `db` parameter anywhere — services are decoupled from storage.
  */
-function getOrCreateProfile(db, userId) {
-  let profile = db.prepare('SELECT * FROM user_profiles WHERE userId = ?').get(userId);
 
-  if (!profile) {
-    const now = new Date().toISOString();
-    db.prepare(`
-      INSERT INTO user_profiles (id, userId, preferredVibes, maxDistanceKm, budgetLevel, energyPreference, socialPreference, explorationRate, createdAt, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      uuidv4(), userId,
-      DEFAULT_PROFILE.preferredVibes,
-      DEFAULT_PROFILE.maxDistanceKm,
-      DEFAULT_PROFILE.budgetLevel,
-      DEFAULT_PROFILE.energyPreference,
-      DEFAULT_PROFILE.socialPreference,
-      DEFAULT_PROFILE.explorationRate,
-      now, now,
-    );
-    profile = db.prepare('SELECT * FROM user_profiles WHERE userId = ?').get(userId);
-  }
+const profileRepository = require('../repositories/profileRepository');
+const feedbackRepository = require('../repositories/feedbackRepository');
 
-  return profile;
-}
+// ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
  * Updates the user profile based on a feedback action.
- * All updates are additive / nudge-based — never hard resets.
+ *
+ * Signal strengths:
+ *   like          → strong positive (+10% energy/social, add vibes)
+ *   check-in      → very strong positive (+15%, add vibes)  [see updateProfileFromCheckin]
+ *   wrong_vibe    → strong negative (remove vibes, −8% energy/social)
+ *   not_for_me    → moderate negative (remove vibes)
+ *   too_far       → spatial negative (−12% maxDistanceKm)
+ *   too_expensive → budget downgrade
+ *   skip          → weak; but 3 skips on same vibe → remove it
  */
-function updateProfileFromFeedback(db, userId, feedbackType, event) {
-  const profile = getOrCreateProfile(db, userId);
-  const eventVibes = Array.isArray(event.vibes) ? event.vibes : JSON.parse(event.vibes || '[]');
-  const preferredVibes = new Set(JSON.parse(profile.preferredVibes || '[]'));
+function updateProfileFromFeedback(userId, feedbackType, event) {
+  const profile = profileRepository.createIfNotExists(userId);
 
-  let { maxDistanceKm, budgetLevel, energyPreference, socialPreference } = profile;
+  // event.vibes is always an array at this point (parsed by repository or controller)
+  const eventVibes = Array.isArray(event.vibes) ? event.vibes : JSON.parse(event.vibes || '[]');
+  const preferredVibes = new Set(profile.preferredVibes);
+
+  let { maxDistanceKm, budgetLevel, energyPreference, socialPreference, explorationRate } = profile;
 
   switch (feedbackType) {
     case 'like':
       eventVibes.forEach((v) => preferredVibes.add(v));
-      energyPreference = clamp(energyPreference + event.energyScore * 0.05);
-      socialPreference = clamp(socialPreference + event.socialScore * 0.05);
+      energyPreference = clamp(energyPreference + (event.energyScore || 0) * 0.10);
+      socialPreference = clamp(socialPreference + (event.socialScore  || 0) * 0.10);
       break;
 
     case 'not_for_me':
@@ -60,6 +46,8 @@ function updateProfileFromFeedback(db, userId, feedbackType, event) {
 
     case 'wrong_vibe':
       eventVibes.forEach((v) => preferredVibes.delete(v));
+      energyPreference = clamp(energyPreference - (event.energyScore || 0) * 0.08);
+      socialPreference = clamp(socialPreference - (event.socialScore  || 0) * 0.08);
       break;
 
     case 'too_far':
@@ -71,51 +59,57 @@ function updateProfileFromFeedback(db, userId, feedbackType, event) {
       break;
 
     case 'skip':
-      // Weak signal — only minor exploration bump
+      applySkipPattern(userId, eventVibes, preferredVibes);
       break;
 
     default:
       break;
   }
 
-  const now = new Date().toISOString();
-  db.prepare(`
-    UPDATE user_profiles
-    SET preferredVibes = ?, maxDistanceKm = ?, budgetLevel = ?, energyPreference = ?, socialPreference = ?, updatedAt = ?
-    WHERE userId = ?
-  `).run(
-    JSON.stringify([...preferredVibes]),
+  profileRepository.update(userId, {
+    preferredVibes: [...preferredVibes],
     maxDistanceKm,
     budgetLevel,
     energyPreference,
     socialPreference,
-    now,
-    userId,
-  );
+    explorationRate,
+  });
 }
 
 /**
- * Strengthens profile signals from a check-in (strong positive).
+ * Very strong positive signal when a user checks in.
  */
-function updateProfileFromCheckin(db, userId, event) {
-  const profile = getOrCreateProfile(db, userId);
+function updateProfileFromCheckin(userId, event) {
+  const profile = profileRepository.createIfNotExists(userId);
   const eventVibes = Array.isArray(event.vibes) ? event.vibes : JSON.parse(event.vibes || '[]');
-  const preferredVibes = new Set(JSON.parse(profile.preferredVibes || '[]'));
+  const preferredVibes = new Set(profile.preferredVibes);
 
   eventVibes.forEach((v) => preferredVibes.add(v));
 
-  const energyPreference = clamp(profile.energyPreference + event.energyScore * 0.1);
-  const socialPreference = clamp(profile.socialPreference + event.socialScore * 0.1);
-
-  const now = new Date().toISOString();
-  db.prepare(`
-    UPDATE user_profiles
-    SET preferredVibes = ?, energyPreference = ?, socialPreference = ?, updatedAt = ?
-    WHERE userId = ?
-  `).run(JSON.stringify([...preferredVibes]), energyPreference, socialPreference, now, userId);
+  profileRepository.update(userId, {
+    preferredVibes: [...preferredVibes],
+    maxDistanceKm:    profile.maxDistanceKm,
+    budgetLevel:      profile.budgetLevel,
+    energyPreference: clamp(profile.energyPreference + (event.energyScore || 0) * 0.15),
+    socialPreference: clamp(profile.socialPreference + (event.socialScore  || 0) * 0.15),
+    explorationRate:  profile.explorationRate,
+  });
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Internal helpers ─────────────────────────────────────────────────────────
+
+/**
+ * After 3 skips on events containing a given vibe, remove that vibe from the profile.
+ * The current skip must already be persisted before this is called.
+ */
+function applySkipPattern(userId, eventVibes, preferredVibes) {
+  for (const vibe of eventVibes) {
+    const skipCount = feedbackRepository.countSkipsForVibe(userId, vibe);
+    if (skipCount >= 3) {
+      preferredVibes.delete(vibe);
+    }
+  }
+}
 
 function clamp(val, min = 0, max = 1) {
   return Math.min(Math.max(val, min), max);
@@ -127,4 +121,4 @@ function decreaseBudget(level) {
   return idx > 0 ? levels[idx - 1] : 'low';
 }
 
-module.exports = { getOrCreateProfile, updateProfileFromFeedback, updateProfileFromCheckin };
+module.exports = { updateProfileFromFeedback, updateProfileFromCheckin };

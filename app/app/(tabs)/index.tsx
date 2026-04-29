@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,58 +7,71 @@ import {
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Colors } from '../constants/colors';
-import ContextSelector from '../components/ContextSelector';
-import EventCard from '../components/EventCard';
-import { fetchFeed } from '../services/api';
-import type { Event, ContextMode, FeedbackType } from '../services/api';
+import { Colors } from '../../constants/colors';
+import ContextSelector from '../../components/ContextSelector';
+import EventCard from '../../components/EventCard';
+import { fetchFeed } from '../../services/api';
+import type { Event, ContextMode, FeedbackType } from '../../services/api';
+import { useDeviceId } from '../../hooks/useDeviceId';
 
 export default function FeedScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const userId = useDeviceId();
 
   const [context, setContext] = useState<ContextMode>('tonight');
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Track dismissed cards (liked/skipped)
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const shownIdsRef = useRef<Set<string>>(new Set());
 
   const loadFeed = useCallback(async (ctx: ContextMode, isRefresh = false) => {
+    if (!userId) return; // wait until device ID is ready
     if (!isRefresh) setLoading(true);
     setError(null);
     try {
-      const data = await fetchFeed(ctx);
+      const data = await fetchFeed(ctx, userId);
       setEvents(data);
-      setDismissed(new Set()); // reset on reload
+      shownIdsRef.current = new Set(data.map((e) => e.id));
     } catch {
       setError('Impossibile caricare il feed. Assicurati che il backend sia in esecuzione.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     loadFeed(context);
   }, [context, loadFeed]);
 
-  const handleContextChange = (mode: ContextMode) => {
-    setContext(mode);
-  };
+  /**
+   * Soft update: remove the card immediately, then silently fetch
+   * one replacement event that wasn't already shown.
+   */
+  const handleFeedback = useCallback(async (eventId: string, type: FeedbackType) => {
+    if (type !== 'like' && type !== 'skip') return;
+    if (!userId) return;
 
-  const handleFeedback = (eventId: string, type: FeedbackType) => {
-    if (type === 'like' || type === 'skip') {
-      setDismissed((prev) => new Set([...prev, eventId]));
+    setEvents((prev) => prev.filter((e) => e.id !== eventId));
+    shownIdsRef.current.add(eventId);
+
+    try {
+      const freshFeed = await fetchFeed(context, userId);
+      const replacement = freshFeed.find((e) => !shownIdsRef.current.has(e.id));
+      if (replacement) {
+        shownIdsRef.current.add(replacement.id);
+        setEvents((prev) => [...prev, replacement]);
+      }
+    } catch {
+      // Not critical — list just stays shorter
     }
-  };
-
-  const visibleEvents = events.filter((e) => !dismissed.has(e.id));
+  }, [context, userId]);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -78,12 +91,12 @@ export default function FeedScreen() {
           onPress={() => router.push('/upload')}
           activeOpacity={0.8}
         >
-          <Text style={styles.addBtnText}>＋</Text>
+          <Ionicons name="add" size={24} color={Colors.text} />
         </TouchableOpacity>
       </View>
 
       {/* Context selector */}
-      <ContextSelector active={context} onChange={handleContextChange} />
+      <ContextSelector active={context} onChange={setContext} />
 
       {/* Feed */}
       {loading && !refreshing ? (
@@ -93,7 +106,7 @@ export default function FeedScreen() {
         </View>
       ) : error ? (
         <View style={styles.centered}>
-          <Text style={styles.errorEmoji}>📡</Text>
+          <Ionicons name="cloud-offline-outline" size={52} color={Colors.textSecondary} />
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={() => loadFeed(context)}>
             <Text style={styles.retryBtnText}>Riprova</Text>
@@ -101,7 +114,7 @@ export default function FeedScreen() {
         </View>
       ) : (
         <FlatList
-          data={visibleEvents}
+          data={events}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <EventCard event={item} onFeedback={handleFeedback} />
@@ -118,7 +131,7 @@ export default function FeedScreen() {
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyEmoji}>🔍</Text>
+              <Ionicons name="search-outline" size={52} color={Colors.textTertiary} />
               <Text style={styles.emptyTitle}>Nessun evento trovato</Text>
               <Text style={styles.emptyBody}>
                 {context === 'last-minute'
@@ -127,19 +140,16 @@ export default function FeedScreen() {
                   ? 'Nessun evento per questo weekend.'
                   : 'Nessun evento per stasera.'}
               </Text>
-              <TouchableOpacity
-                style={styles.retryBtn}
-                onPress={() => router.push('/upload')}
-              >
+              <TouchableOpacity style={styles.retryBtn} onPress={() => router.push('/upload')}>
                 <Text style={styles.retryBtnText}>Aggiungi un evento</Text>
               </TouchableOpacity>
             </View>
           }
           ListFooterComponent={
-            visibleEvents.length > 0 ? (
+            events.length > 0 ? (
               <View style={styles.footer}>
                 <Text style={styles.footerText}>
-                  {visibleEvents.length} {visibleEvents.length === 1 ? 'evento' : 'eventi'} selezionati per te
+                  {events.length} {events.length === 1 ? 'evento' : 'eventi'} selezionati per te
                 </Text>
                 <Text style={styles.footerHint}>Scorri su per ricaricare</Text>
               </View>
@@ -152,10 +162,7 @@ export default function FeedScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
+  container: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -164,17 +171,8 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 16,
   },
-  logo: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: Colors.text,
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
+  logo: { fontSize: 32, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
+  subtitle: { fontSize: 14, color: Colors.textSecondary, marginTop: 2 },
   addBtn: {
     width: 42,
     height: 42,
@@ -188,78 +186,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 6,
   },
-  addBtnText: {
-    fontSize: 22,
-    color: Colors.text,
-    fontWeight: '300',
-    lineHeight: 26,
-  },
-  list: {
-    paddingTop: 16,
-    paddingBottom: 40,
-  },
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 14,
-    paddingHorizontal: 32,
-  },
-  loadingText: {
-    color: Colors.textSecondary,
-    fontSize: 15,
-  },
-  errorEmoji: {
-    fontSize: 48,
-  },
-  errorText: {
-    color: Colors.textSecondary,
-    fontSize: 15,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  retryBtn: {
-    marginTop: 8,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: Colors.accent,
-  },
-  retryBtnText: {
-    color: Colors.text,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingTop: 60,
-    paddingHorizontal: 32,
-    gap: 10,
-  },
-  emptyEmoji: { fontSize: 52 },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  emptyBody: {
-    fontSize: 15,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  footer: {
-    alignItems: 'center',
-    paddingVertical: 28,
-    gap: 6,
-  },
-  footerText: {
-    fontSize: 13,
-    color: Colors.textTertiary,
-    fontWeight: '600',
-  },
-  footerHint: {
-    fontSize: 12,
-    color: Colors.textTertiary,
-  },
+  list: { paddingTop: 16, paddingBottom: 110 },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, paddingHorizontal: 32 },
+  loadingText: { color: Colors.textSecondary, fontSize: 15 },
+  errorText: { color: Colors.textSecondary, fontSize: 15, textAlign: 'center', lineHeight: 22 },
+  retryBtn: { marginTop: 8, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12, backgroundColor: Colors.accent },
+  retryBtnText: { color: Colors.text, fontSize: 15, fontWeight: '700' },
+  emptyContainer: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 32, gap: 10 },
+  emptyTitle: { fontSize: 20, fontWeight: '700', color: Colors.text },
+  emptyBody: { fontSize: 15, color: Colors.textSecondary, textAlign: 'center', lineHeight: 22 },
+  footer: { alignItems: 'center', paddingVertical: 28, gap: 6 },
+  footerText: { fontSize: 13, color: Colors.textTertiary, fontWeight: '600' },
+  footerHint: { fontSize: 12, color: Colors.textTertiary },
 });

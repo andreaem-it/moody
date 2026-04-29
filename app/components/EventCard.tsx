@@ -2,13 +2,15 @@ import React, { useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Pressable,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { getVibeConfig } from '../constants/vibes';
 import LiveLayer from './LiveLayer';
-import { formatDate, formatPrice, formatTime } from '../utils/format';
+import { formatDate, formatPrice, formatTime, formatTimeToEvent } from '../utils/format';
 import type { Event, FeedbackType } from '../services/api';
 import { sendFeedback } from '../services/api';
+import { useDeviceId } from '../hooks/useDeviceId';
 
 interface Props {
   event: Event;
@@ -17,19 +19,25 @@ interface Props {
 
 export default function EventCard({ event, onFeedback }: Props) {
   const router = useRouter();
+  const userId = useDeviceId();
 
   const handleFeedback = useCallback(
     async (type: FeedbackType) => {
+      if (!userId) {
+        onFeedback?.(event.id, type); // optimistic UI even if not ready
+        return;
+      }
       try {
-        await sendFeedback(event.id, type);
+        await sendFeedback(event.id, type, userId);
         onFeedback?.(event.id, type);
       } catch {
-        // Silent: UI should still respond
         onFeedback?.(event.id, type);
       }
     },
-    [event.id, onFeedback],
+    [event.id, onFeedback, userId],
   );
+
+  const timeLabel = formatTimeToEvent(event.date, event.time);
 
   return (
     <Pressable
@@ -42,7 +50,7 @@ export default function EventCard({ event, onFeedback }: Props) {
           const cfg = getVibeConfig(v);
           return (
             <View key={v} style={[styles.vibeChip, { borderColor: cfg.color + '55', backgroundColor: cfg.color + '18' }]}>
-              <Text style={styles.vibeEmoji}>{cfg.emoji}</Text>
+              <Ionicons name={cfg.icon as any} size={11} color={cfg.color} />
               <Text style={[styles.vibeLabel, { color: cfg.color }]}>{cfg.label}</Text>
             </View>
           );
@@ -59,17 +67,32 @@ export default function EventCard({ event, onFeedback }: Props) {
 
       {/* Meta row */}
       <View style={styles.metaRow}>
-        <Text style={styles.metaText}>🕐 {formatTime(event.time)}</Text>
+        <Ionicons name="time-outline" size={13} color={Colors.textSecondary} />
+        <Text style={styles.metaText}>{formatTime(event.time)}</Text>
         <Text style={styles.metaDot}>·</Text>
-        <Text style={styles.metaText} numberOfLines={1}>📍 {event.location}</Text>
+        <Ionicons name="location-outline" size={13} color={Colors.textSecondary} />
+        <Text style={styles.metaText} numberOfLines={1}>{event.location}</Text>
       </View>
 
       {/* Date */}
       <Text style={styles.dateText}>{formatDate(event.date)}</Text>
 
+      {/* Time to event */}
+      {timeLabel && (
+        <View style={styles.timeBadge}>
+          <Ionicons name="timer-outline" size={11} color={Colors.accentLight} />
+          <Text style={styles.timeBadgeText}>{timeLabel}</Text>
+        </View>
+      )}
+
       {/* Live Layer */}
       <View style={styles.liveRow}>
-        <LiveLayer peopleCount={event.peopleCount} dominantMood={event.dominantMood} compact />
+        <LiveLayer
+          peopleCount={event.peopleCount}
+          dominantMood={event.dominantMood}
+          momentumCount={event.momentumCount}
+          compact
+        />
       </View>
 
       {/* Separator */}
@@ -78,7 +101,11 @@ export default function EventCard({ event, onFeedback }: Props) {
       {/* Recommendation reason */}
       {event.recommendationReason && (
         <View style={styles.reasonRow}>
-          <Text style={styles.reasonIcon}>💡</Text>
+          <Ionicons
+            name={event.isSurprise ? 'dice-outline' : 'bulb-outline'}
+            size={13}
+            color={Colors.accentLight}
+          />
           <Text style={styles.reasonText}>{event.recommendationReason}</Text>
         </View>
       )}
@@ -97,7 +124,8 @@ export default function EventCard({ event, onFeedback }: Props) {
           onPress={() => handleFeedback('like')}
           activeOpacity={0.75}
         >
-          <Text style={styles.likeBtnText}>❤️ Mi piace</Text>
+          <Ionicons name="heart" size={14} color={Colors.like} />
+          <Text style={styles.likeBtnText}>Mi piace</Text>
         </TouchableOpacity>
       </View>
     </Pressable>
@@ -127,13 +155,12 @@ const styles = StyleSheet.create({
   vibeChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
+    gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 99,
     borderWidth: 1,
   },
-  vibeEmoji: { fontSize: 11 },
   vibeLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.2 },
   priceChip: {
     marginLeft: 'auto',
@@ -156,7 +183,7 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
   },
   metaText: {
     fontSize: 13,
@@ -172,9 +199,7 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
     fontWeight: '500',
   },
-  liveRow: {
-    marginTop: 2,
-  },
+  liveRow: { marginTop: 2 },
   separator: {
     height: 1,
     backgroundColor: Colors.cardBorder,
@@ -185,7 +210,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  reasonIcon: { fontSize: 13 },
   reasonText: {
     fontSize: 13,
     color: Colors.accentLight,
@@ -203,6 +227,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
   },
   skipBtn: {
     backgroundColor: Colors.surface,
@@ -224,5 +250,22 @@ const styles = StyleSheet.create({
     color: Colors.like,
     fontSize: 14,
     fontWeight: '700',
+  },
+  timeBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 99,
+    backgroundColor: Colors.accentDim,
+    borderWidth: 1,
+    borderColor: Colors.accent + '55',
+  },
+  timeBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.accentLight,
   },
 });

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
 import type { ContextMode } from '../services/api';
 
@@ -8,10 +9,10 @@ interface Props {
   onChange: (mode: ContextMode) => void;
 }
 
-const OPTIONS: { key: ContextMode; label: string; emoji: string }[] = [
-  { key: 'tonight',     label: 'Stasera',     emoji: '🌙' },
-  { key: 'weekend',     label: 'Weekend',     emoji: '☀️' },
-  { key: 'last-minute', label: 'Last minute', emoji: '⚡' },
+const OPTIONS: { key: ContextMode; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { key: 'tonight',     label: 'Stasera',     icon: 'moon-outline'  },
+  { key: 'weekend',     label: 'Weekend',     icon: 'sunny-outline' },
+  { key: 'last-minute', label: 'Last minute', icon: 'flash-outline' },
 ];
 
 export default function ContextSelector({ active, onChange }: Props) {
@@ -26,7 +27,11 @@ export default function ContextSelector({ active, onChange }: Props) {
             style={[styles.pill, isActive && styles.pillActive]}
             activeOpacity={0.75}
           >
-            <Text style={styles.emoji}>{opt.emoji}</Text>
+            <Ionicons
+              name={opt.icon}
+              size={13}
+              color={isActive ? Colors.accentLight : Colors.textSecondary}
+            />
             <Text style={[styles.label, isActive && styles.labelActive]}>{opt.label}</Text>
           </TouchableOpacity>
         );
@@ -58,9 +63,6 @@ const styles = StyleSheet.create({
   pillActive: {
     backgroundColor: Colors.accentDim,
     borderColor: Colors.accent,
-  },
-  emoji: {
-    fontSize: 13,
   },
   label: {
     fontSize: 13,

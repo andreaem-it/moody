@@ -14,9 +14,16 @@ function initializeDatabase() {
   return db;
 }
 
-function getDatabase() {
+/** Primary accessor used by repositories — always returns initialised instance. */
+function getDb() {
   if (!db) return initializeDatabase();
   return db;
 }
 
-module.exports = { initializeDatabase, getDatabase };
+/** Wraps a function inside a better-sqlite3 transaction. */
+function transaction(fn) {
+  return getDb().transaction(fn);
+}
+
+// getDatabase kept for backward compatibility
+module.exports = { initializeDatabase, getDatabase: getDb, getDb, transaction };

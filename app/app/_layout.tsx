@@ -19,7 +19,9 @@ export default function RootLayout() {
             animation: 'slide_from_right',
           }}
         >
-          <Stack.Screen name="index" options={{ headerShown: false }} />
+          {/* Tab group — root of the app */}
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          {/* Full-screen push screens (above the tab bar) */}
           <Stack.Screen
             name="event/[id]"
             options={{

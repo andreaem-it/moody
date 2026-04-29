@@ -35,9 +35,27 @@ async function extractTextFromImage(filePath) {
 }
 
 /**
+ * Computes a mock confidence score (0–1) based on how many key fields were extracted.
+ * In production this would come from the Vision API's confidence annotations.
+ */
+function calculateConfidence(parsed) {
+  const checks = [
+    parsed.title && parsed.title !== 'Evento senza titolo',
+    parsed.date && parsed.date !== new Date().toISOString().split('T')[0],
+    parsed.time && parsed.time !== '20:00',
+    parsed.location && parsed.location !== 'Milano',
+    parsed.price !== null && parsed.price !== undefined,
+  ];
+  const ratio = checks.filter(Boolean).length / checks.length;
+  if (ratio >= 0.8) return parseFloat((0.85 + Math.random() * 0.10).toFixed(2));
+  if (ratio >= 0.5) return parseFloat((0.55 + Math.random() * 0.15).toFixed(2));
+  return parseFloat((0.40 + Math.random() * 0.10).toFixed(2));
+}
+
+/**
  * Parses raw OCR text into structured event fields.
  * @param {string} rawText
- * @returns {{ title, description, date, time, location, price }}
+ * @returns {{ title, description, date, time, location, price, confidence }}
  */
 function parseEventFromText(rawText) {
   const lines = rawText.split('\n').map((l) => l.trim()).filter(Boolean);
@@ -62,7 +80,8 @@ function parseEventFromText(rawText) {
   const freeMatch = rawText.match(/gratuito|libero|free/i);
   const price = freeMatch ? 0 : priceMatch ? parseFloat(priceMatch[1].replace(',', '.')) : null;
 
-  return { title, description, date, time, location, price };
+  const parsed = { title, description, date, time, location, price };
+  return { ...parsed, confidence: calculateConfidence(parsed) };
 }
 
 function normalizeDateString(str) {

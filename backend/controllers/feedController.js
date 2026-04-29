@@ -1,90 +1,81 @@
-const { getOrCreateProfile } = require('../services/profileService');
-const { rankEvents } = require('../services/rankingService');
-const { getMoodBreakdown } = require('./eventsController');
+/**
+ * feedController
+ * Builds the ranked, personalised event feed.
+ * All DB access is delegated to repositories.
+ */
 
-// Default location: Milan city center
-const DEFAULT_LAT = 45.4642;
+const { rankEvents } = require('../services/rankingService');
+const profileRepository = require('../repositories/profileRepository');
+const eventRepository = require('../repositories/eventRepository');
+const checkinRepository = require('../repositories/checkinRepository');
+const moodRepository = require('../repositories/moodRepository');
+const feedCache = require('../services/feedCache');
+
+const DEFAULT_LAT = 45.4642; // Milan
 const DEFAULT_LNG = 9.1900;
 
-function getTodayString() {
-  return new Date().toISOString().split('T')[0];
+// ─── Live-data enrichment ─────────────────────────────────────────────────────
+
+/**
+ * Attaches real-time stats (people count, mood breakdown, trending score)
+ * to an already-parsed event object.
+ */
+function enrichWithLiveData(event) {
+  const peopleCount   = checkinRepository.countByEvent(event.id);
+  const momentumCount = checkinRepository.countRecent(event.id, 120); // 2 h window
+  const moodVotes120  = moodRepository.countRecent(event.id, 120);
+  const moodData      = moodRepository.getBreakdown(event.id);
+
+  // Trending: checkins in 2h + mood votes in 2h (×2 weight), normalised 0–1
+  const trendingRaw   = momentumCount + moodVotes120 * 2;
+  const trendingScore = Math.min(trendingRaw / 20, 1);
+
+  return {
+    ...event,
+    peopleCount,
+    momentumCount,
+    trendingScore,
+    ...moodData,
+  };
 }
 
-function getWeekendDates() {
-  const now = new Date();
-  const day = now.getDay(); // 0=Sun…6=Sat
-  const daysToSat = day === 6 ? 0 : 6 - day;
-  const daysToSun = day === 0 ? 0 : 7 - day;
-
-  const sat = new Date(now);
-  sat.setDate(now.getDate() + daysToSat);
-
-  const sun = new Date(now);
-  sun.setDate(now.getDate() + daysToSun);
-
-  return [sat.toISOString().split('T')[0], sun.toISOString().split('T')[0]];
-}
-
-function getEventsByContext(db, context) {
-  const today = getTodayString();
-
-  if (context === 'tonight') {
-    return db.prepare("SELECT * FROM events WHERE date = ?").all(today);
-  }
-
-  if (context === 'last-minute') {
-    const now = new Date();
-    const cutoff = new Date(now.getTime() + 4 * 60 * 60 * 1000);
-    const currentTime = now.toTimeString().slice(0, 5);
-    const cutoffDate = cutoff.toISOString().split('T')[0];
-    const cutoffTime = cutoff.toTimeString().slice(0, 5);
-
-    if (cutoffDate === today) {
-      return db.prepare(
-        "SELECT * FROM events WHERE date = ? AND time >= ? AND time <= ?"
-      ).all(today, currentTime, cutoffTime);
-    }
-    // Crosses midnight
-    return db.prepare(
-      "SELECT * FROM events WHERE (date = ? AND time >= ?) OR (date = ? AND time <= ?)"
-    ).all(today, currentTime, cutoffDate, cutoffTime);
-  }
-
-  if (context === 'weekend') {
-    const [sat, sun] = getWeekendDates();
-    return db.prepare("SELECT * FROM events WHERE date IN (?, ?)").all(sat, sun);
-  }
-
-  // Fallback: upcoming events
-  return db.prepare("SELECT * FROM events WHERE date >= ? ORDER BY date, time").all(today);
-}
+// ─── Main feed handler ────────────────────────────────────────────────────────
 
 async function getFeed(req, res, next) {
   try {
     const { context = 'tonight', lat, lng, userId = 'demo-user' } = req.query;
-    const db = req.db;
 
-    const profile = getOrCreateProfile(db, userId);
-    const events = getEventsByContext(db, context);
+    // ── Cache hit ──
+    const cached = feedCache.get(userId, context);
+    if (cached) return res.json(cached);
 
-    // Attach live data to each event before ranking
-    const enrichedEvents = events.map((event) => {
-      const peopleCount = db.prepare('SELECT COUNT(*) as c FROM checkins WHERE eventId = ?').get(event.id).c;
-      const moodData = getMoodBreakdown(db, event.id);
-      return {
-        ...event,
-        vibes: JSON.parse(event.vibes || '[]'),
-        peopleCount,
-        ...moodData,
-      };
-    });
+    const profile = profileRepository.createIfNotExists(userId);
+    const events  = eventRepository.findByContext(context).map(enrichWithLiveData);
 
     const userLat = lat ? parseFloat(lat) : DEFAULT_LAT;
     const userLng = lng ? parseFloat(lng) : DEFAULT_LNG;
 
-    const ranked = rankEvents(enrichedEvents, profile, context, userLat, userLng);
+    let ranked = rankEvents(events, profile, context, userLat, userLng);
 
-    res.json({ context, events: ranked });
+    // ── Geo fallback: expand search radius if fewer than 3 results ──
+    if (ranked.length < 3 && profile.maxDistanceKm < 100) {
+      const widerProfile = { ...profile, maxDistanceKm: profile.maxDistanceKm * 1.5 };
+      ranked = rankEvents(events, widerProfile, context, userLat, userLng);
+    }
+
+    // ── Surprise event: flag lowest-scored result ──
+    if (ranked.length > 1) {
+      ranked[ranked.length - 1] = {
+        ...ranked[ranked.length - 1],
+        recommendationReason: 'Potrebbe sorprenderti',
+        isSurprise: true,
+      };
+    }
+
+    const result = { context, events: ranked };
+    feedCache.set(userId, context, result);
+
+    res.json(result);
   } catch (err) {
     next(err);
   }

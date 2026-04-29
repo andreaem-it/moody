@@ -1,0 +1,28 @@
+const express = require('express');
+const multer  = require('multer');
+const path    = require('path');
+const { getProfile, updateProfile } = require('../controllers/profileController');
+const { getUserActivity }           = require('../controllers/activityController');
+
+const router = express.Router();
+
+// Multer for avatar uploads — stored in the shared uploads/ directory
+const storage = multer.diskStorage({
+  destination: path.join(__dirname, '..', 'uploads'),
+  filename: (_req, file, cb) =>
+    cb(null, `avatar_${Date.now()}${path.extname(file.originalname)}`),
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    cb(null, allowed.includes(file.mimetype));
+  },
+});
+
+router.get('/:userId',          getProfile);
+router.put('/:userId',          upload.single('avatar'), updateProfile);
+router.get('/:userId/activity', getUserActivity);
+
+module.exports = router;

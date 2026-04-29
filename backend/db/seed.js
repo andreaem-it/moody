@@ -1,5 +1,9 @@
 const { v4: uuidv4 } = require('uuid');
 
+function makeEventHash(title, date, location) {
+  return `${title}${date}${location}`.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 function seedDatabase(db) {
   const count = db.prepare('SELECT COUNT(*) as c FROM events').get();
   if (count.c > 0) {
@@ -244,8 +248,8 @@ function seedDatabase(db) {
   ];
 
   const insertEvent = db.prepare(`
-    INSERT INTO events (id, title, description, date, time, location, latitude, longitude, price, vibes, energyScore, socialScore, sourceType, rawText, createdAt, updatedAt)
-    VALUES (@id, @title, @description, @date, @time, @location, @latitude, @longitude, @price, @vibes, @energyScore, @socialScore, @sourceType, NULL, @createdAt, @updatedAt)
+    INSERT INTO events (id, title, description, date, time, location, latitude, longitude, price, vibes, energyScore, socialScore, sourceType, rawText, eventHash, popularityBoost, createdAt, updatedAt)
+    VALUES (@id, @title, @description, @date, @time, @location, @latitude, @longitude, @price, @vibes, @energyScore, @socialScore, @sourceType, NULL, @eventHash, 0, @createdAt, @updatedAt)
   `);
 
   const insertCheckin = db.prepare(`
@@ -262,7 +266,8 @@ function seedDatabase(db) {
     const nowIso = iso();
 
     for (const event of events) {
-      insertEvent.run({ ...event, createdAt: nowIso, updatedAt: nowIso });
+      const eventHash = makeEventHash(event.title, event.date, event.location);
+      insertEvent.run({ ...event, eventHash, createdAt: nowIso, updatedAt: nowIso });
 
       // Fake checkins (random 2–20 per event)
       const checkinCount = Math.floor(Math.random() * 18) + 2;

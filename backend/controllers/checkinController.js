@@ -1,31 +1,35 @@
-const { v4: uuidv4 } = require('uuid');
+/**
+ * checkinController
+ * Handles event check-ins with duplicate prevention.
+ * All DB access is delegated to repositories.
+ */
+
 const { updateProfileFromCheckin } = require('../services/profileService');
+const checkinRepository = require('../repositories/checkinRepository');
+const eventRepository = require('../repositories/eventRepository');
 
 async function postCheckin(req, res, next) {
   try {
     const { id: eventId } = req.params;
     const { userId = 'demo-user' } = req.body;
 
-    const event = req.db.prepare('SELECT * FROM events WHERE id = ?').get(eventId);
+    const event = eventRepository.findById(eventId);
     if (!event) return res.status(404).json({ error: 'Event not found' });
 
-    // Prevent duplicate active check-in for same user + event
-    const existing = req.db.prepare('SELECT id FROM checkins WHERE eventId = ? AND userId = ?').get(eventId, userId);
-    if (existing) {
-      return res.status(409).json({ error: 'Already checked in to this event', alreadyCheckedIn: true });
+    if (checkinRepository.existsByEventAndUser(eventId, userId)) {
+      return res.status(409).json({
+        error: 'Already checked in to this event',
+        alreadyCheckedIn: true,
+        peopleCount: checkinRepository.countByEvent(eventId),
+      });
     }
 
-    const now = new Date().toISOString();
-    req.db.prepare('INSERT INTO checkins (id, eventId, userId, createdAt) VALUES (?, ?, ?, ?)').run(
-      uuidv4(), eventId, userId, now,
-    );
+    checkinRepository.create(eventId, userId);
 
-    // Strong positive profile signal
-    const eventWithVibes = { ...event, vibes: JSON.parse(event.vibes || '[]') };
-    updateProfileFromCheckin(req.db, userId, eventWithVibes);
+    // Very strong positive profile signal — event.vibes is already a parsed array
+    updateProfileFromCheckin(userId, event);
 
-    const peopleCount = req.db.prepare('SELECT COUNT(*) as c FROM checkins WHERE eventId = ?').get(eventId).c;
-
+    const peopleCount = checkinRepository.countByEvent(eventId);
     res.status(201).json({ success: true, peopleCount, userId, eventId });
   } catch (err) {
     next(err);
@@ -35,11 +39,11 @@ async function postCheckin(req, res, next) {
 async function getCheckins(req, res, next) {
   try {
     const { id: eventId } = req.params;
-    const event = req.db.prepare('SELECT id FROM events WHERE id = ?').get(eventId);
+
+    const event = eventRepository.findById(eventId);
     if (!event) return res.status(404).json({ error: 'Event not found' });
 
-    const peopleCount = req.db.prepare('SELECT COUNT(*) as c FROM checkins WHERE eventId = ?').get(eventId).c;
-    res.json({ eventId, peopleCount });
+    res.json({ eventId, peopleCount: checkinRepository.countByEvent(eventId) });
   } catch (err) {
     next(err);
   }

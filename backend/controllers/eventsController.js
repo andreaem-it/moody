@@ -1,60 +1,40 @@
-const { v4: uuidv4 } = require('uuid');
+/**
+ * eventsController
+ * Handles CRUD for events + event detail with live data.
+ * All DB access is delegated to repositories.
+ */
+
 const { enrichEvent } = require('../services/enrichmentService');
+const eventRepository = require('../repositories/eventRepository');
+const checkinRepository = require('../repositories/checkinRepository');
+const moodRepository = require('../repositories/moodRepository');
 
-function getMoodBreakdown(db, eventId) {
-  const votes = db.prepare('SELECT value FROM moods WHERE eventId = ?').all(eventId);
-  const total = votes.length;
-  if (!total) return { dominantMood: null, moodBreakdown: { fire: 0, mid: 0, dead: 0 }, totalVotes: 0 };
+// ─── Controllers ──────────────────────────────────────────────────────────────
 
-  const counts = votes.reduce((acc, v) => {
-    acc[v.value] = (acc[v.value] || 0) + 1;
-    return acc;
-  }, {});
-
-  const dominantMood = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
-
-  return {
-    dominantMood,
-    moodBreakdown: {
-      fire: Math.round(((counts.fire || 0) / total) * 100),
-      mid: Math.round(((counts.mid || 0) / total) * 100),
-      dead: Math.round(((counts.dead || 0) / total) * 100),
-    },
-    totalVotes: total,
-  };
-}
-
-async function listEvents(req, res, next) {
+async function listEvents(_req, res, next) {
   try {
-    const events = req.db.prepare('SELECT * FROM events ORDER BY date, time').all();
-    const result = events.map((e) => ({
-      ...e,
-      vibes: JSON.parse(e.vibes || '[]'),
-      peopleCount: req.db.prepare('SELECT COUNT(*) as c FROM checkins WHERE eventId = ?').get(e.id).c,
-      ...getMoodBreakdown(req.db, e.id),
+    const events = eventRepository.findAll();
+    const result = events.map((event) => ({
+      ...event,
+      peopleCount: checkinRepository.countByEvent(event.id),
+      ...moodRepository.getBreakdown(event.id),
     }));
     res.json(result);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 }
 
 async function getEvent(req, res, next) {
   try {
-    const event = req.db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+    const event = eventRepository.findById(req.params.id);
     if (!event) return res.status(404).json({ error: 'Event not found' });
-
-    const peopleCount = req.db.prepare('SELECT COUNT(*) as c FROM checkins WHERE eventId = ?').get(event.id).c;
 
     res.json({
       ...event,
-      vibes: JSON.parse(event.vibes || '[]'),
-      peopleCount,
-      ...getMoodBreakdown(req.db, event.id),
+      peopleCount:   checkinRepository.countByEvent(event.id),
+      momentumCount: checkinRepository.countRecent(event.id, 120),   // last 2 h
+      ...moodRepository.getBreakdown(event.id),
     });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 }
 
 async function createEvent(req, res, next) {
@@ -69,42 +49,36 @@ async function createEvent(req, res, next) {
       return res.status(400).json({ error: 'title, date, time and location are required' });
     }
 
+    // ── Deduplication ──
+    const hash = `${title}${date}${location}`.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const existing = eventRepository.findByHash(hash);
+    if (existing) {
+      const updated = eventRepository.incrementPopularityBoost(existing.id);
+      return res.status(200).json({ ...updated, isDuplicate: true });
+    }
+
+    // ── Create ──
     const enriched = enrichEvent({ title, description: description || '', rawText: rawText || '' });
+    const created = eventRepository.create({
+      title, description, date, time, location,
+      latitude, longitude, price,
+      vibes: vibes.length ? vibes : enriched.vibes,
+      energyScore:  energyScore  ?? enriched.energyScore,
+      socialScore:  socialScore  ?? enriched.socialScore,
+      sourceType, rawText,
+    });
 
-    const id = uuidv4();
-    const now = new Date().toISOString();
-    const finalVibes = vibes.length ? vibes : enriched.vibes;
-
-    req.db.prepare(`
-      INSERT INTO events (id, title, description, date, time, location, latitude, longitude, price, vibes, energyScore, socialScore, sourceType, rawText, createdAt, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      id, title, description || null, date, time, location,
-      latitude || null, longitude || null, price ?? null,
-      JSON.stringify(finalVibes),
-      energyScore ?? enriched.energyScore,
-      socialScore ?? enriched.socialScore,
-      sourceType, rawText || null,
-      now, now,
-    );
-
-    const created = req.db.prepare('SELECT * FROM events WHERE id = ?').get(id);
-    res.status(201).json({ ...created, vibes: JSON.parse(created.vibes) });
-  } catch (err) {
-    next(err);
-  }
+    res.status(201).json(created);
+  } catch (err) { next(err); }
 }
 
 async function deleteEvent(req, res, next) {
   try {
-    const event = req.db.prepare('SELECT id FROM events WHERE id = ?').get(req.params.id);
+    const event = eventRepository.findById(req.params.id);
     if (!event) return res.status(404).json({ error: 'Event not found' });
-
-    req.db.prepare('DELETE FROM events WHERE id = ?').run(req.params.id);
+    eventRepository.delete(req.params.id);
     res.json({ success: true });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 }
 
-module.exports = { listEvents, getEvent, createEvent, deleteEvent, getMoodBreakdown };
+module.exports = { listEvents, getEvent, createEvent, deleteEvent };

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
 import { MOOD_CONFIG } from '../constants/vibes';
 import type { MoodBreakdown } from '../services/api';
@@ -34,7 +35,7 @@ export default function MoodBar({ breakdown, totalVotes }: Props) {
               key={key}
               style={[styles.segment, { flex: pct, backgroundColor: MOOD_CONFIG[key].color }]}
             />
-          ) : null
+          ) : null,
         )}
       </View>
 
@@ -42,7 +43,11 @@ export default function MoodBar({ breakdown, totalVotes }: Props) {
       <View style={styles.legend}>
         {entries.map(({ key, pct }) => (
           <View key={key} style={styles.legendItem}>
-            <Text style={styles.emoji}>{MOOD_CONFIG[key].emoji}</Text>
+            <Ionicons
+              name={MOOD_CONFIG[key].icon as any}
+              size={18}
+              color={MOOD_CONFIG[key].color}
+            />
             <Text style={[styles.pct, { color: MOOD_CONFIG[key].color }]}>{pct}%</Text>
             <Text style={styles.label}>{MOOD_CONFIG[key].label}</Text>
           </View>
@@ -55,9 +60,7 @@ export default function MoodBar({ breakdown, totalVotes }: Props) {
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
-    gap: 10,
-  },
+  wrapper: { gap: 10 },
   bar: {
     flexDirection: 'row',
     height: 8,
@@ -65,9 +68,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: Colors.cardBorder,
   },
-  segment: {
-    borderRadius: 99,
-  },
+  segment: { borderRadius: 99 },
   legend: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -75,9 +76,6 @@ const styles = StyleSheet.create({
   legendItem: {
     alignItems: 'center',
     gap: 2,
-  },
-  emoji: {
-    fontSize: 16,
   },
   pct: {
     fontSize: 14,
@@ -87,9 +85,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.textSecondary,
   },
-  empty: {
-    paddingVertical: 8,
-  },
+  empty: { paddingVertical: 8 },
   emptyText: {
     color: Colors.textTertiary,
     fontSize: 13,
