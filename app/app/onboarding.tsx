@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../constants/colors';
 import { VIBES } from '../constants/vibes';
@@ -28,6 +29,14 @@ const DISTANCE_OPTIONS = [5, 10, 20, 50, 100];
 const LEVEL_STEPS  = [0.1, 0.3, 0.5, 0.7, 0.9];
 const LEVEL_LABELS = ['Minimo', 'Basso', 'Medio', 'Alto', 'Massimo'];
 
+const STEP_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+  benvenuto: 'hand-left-outline',
+  vibe:      'color-palette-outline',
+  budget:    'wallet-outline',
+  distanza:  'location-outline',
+  energia:   'flash-outline',
+};
+
 function nearestStep(v: number) {
   return LEVEL_STEPS.reduce((a, b) => Math.abs(b - v) < Math.abs(a - v) ? b : a);
 }
@@ -36,7 +45,8 @@ const STEPS = ['benvenuto', 'vibe', 'budget', 'distanza', 'energia'] as const;
 type Step = typeof STEPS[number];
 
 export default function OnboardingScreen() {
-  const userId = useDeviceId();
+  const userId  = useDeviceId();
+  const insets  = useSafeAreaInsets();
 
   const [step,        setStep]        = useState<Step>('benvenuto');
   const [name,        setName]        = useState('');
@@ -48,7 +58,7 @@ export default function OnboardingScreen() {
   const [exploration, setExploration] = useState(0.3);
   const [saving,      setSaving]      = useState(false);
 
-  const slideX = useRef(new Animated.Value(0)).current;
+  const slideX  = useRef(new Animated.Value(0)).current;
   const stepIdx = STEPS.indexOf(step);
 
   function goNext() {
@@ -98,8 +108,11 @@ export default function OnboardingScreen() {
   const isLast = stepIdx === STEPS.length - 1;
 
   return (
-    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-
+    <KeyboardAvoidingView
+      style={[styles.root, { paddingTop: insets.top }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={0}
+    >
       {/* Progress bar */}
       <View style={styles.progressBar}>
         <View style={[styles.progressFill, { width: `${((stepIdx + 1) / STEPS.length) * 100}%` as any }]} />
@@ -110,7 +123,9 @@ export default function OnboardingScreen() {
 
         {/* ── Step 0: Benvenuto ── */}
         <StepWrap>
-          <View style={styles.emoji}><Text style={styles.emojiText}>👋</Text></View>
+          <View style={styles.iconWrap}>
+            <Ionicons name={STEP_ICONS.benvenuto} size={48} color={Colors.accent} />
+          </View>
           <Text style={styles.stepTitle}>Ciao! Sono Moody.</Text>
           <Text style={styles.stepSub}>
             Ti aiuto a trovare eventi perfetti per come ti senti in questo momento.
@@ -133,7 +148,9 @@ export default function OnboardingScreen() {
 
         {/* ── Step 1: Vibe ── */}
         <StepWrap>
-          <View style={styles.emoji}><Text style={styles.emojiText}>✨</Text></View>
+          <View style={styles.iconWrap}>
+            <Ionicons name={STEP_ICONS.vibe} size={48} color={Colors.accent} />
+          </View>
           <Text style={styles.stepTitle}>Qual è la tua vibe?</Text>
           <Text style={styles.stepSub}>Seleziona quelle che ti rappresentano di più. Puoi sceglierne quante vuoi.</Text>
           <View style={styles.vibeGrid}>
@@ -157,7 +174,9 @@ export default function OnboardingScreen() {
 
         {/* ── Step 2: Budget ── */}
         <StepWrap>
-          <View style={styles.emoji}><Text style={styles.emojiText}>💸</Text></View>
+          <View style={styles.iconWrap}>
+            <Ionicons name={STEP_ICONS.budget} size={48} color={Colors.accent} />
+          </View>
           <Text style={styles.stepTitle}>Quanto vuoi spendere?</Text>
           <Text style={styles.stepSub}>Di solito, per una serata fuori mi spendo…</Text>
           <View style={styles.budgetList}>
@@ -183,7 +202,9 @@ export default function OnboardingScreen() {
 
         {/* ── Step 3: Distanza ── */}
         <StepWrap>
-          <View style={styles.emoji}><Text style={styles.emojiText}>📍</Text></View>
+          <View style={styles.iconWrap}>
+            <Ionicons name={STEP_ICONS.distanza} size={48} color={Colors.accent} />
+          </View>
           <Text style={styles.stepTitle}>Quanto ti sposti?</Text>
           <Text style={styles.stepSub}>Distanza massima che sei disposto a percorrere per un evento.</Text>
           <View style={styles.distanceGrid}>
@@ -205,7 +226,9 @@ export default function OnboardingScreen() {
 
         {/* ── Step 4: Energia + Socialità ── */}
         <StepWrap>
-          <View style={styles.emoji}><Text style={styles.emojiText}>⚡️</Text></View>
+          <View style={styles.iconWrap}>
+            <Ionicons name={STEP_ICONS.energia} size={48} color={Colors.accent} />
+          </View>
           <Text style={styles.stepTitle}>Che tipo sei?</Text>
           <Text style={styles.stepSub}>Aiutaci a capire il tuo stile per calibrare i suggerimenti.</Text>
 
@@ -231,7 +254,7 @@ export default function OnboardingScreen() {
       </Animated.View>
 
       {/* Navigation */}
-      <View style={styles.nav}>
+      <View style={[styles.nav, { paddingBottom: Math.max(insets.bottom + 12, 28) }]}>
         {stepIdx > 0
           ? (
             <TouchableOpacity style={styles.backBtn} onPress={goBack} activeOpacity={0.75}>
@@ -316,39 +339,46 @@ function StepWrap({ children }: { children: React.ReactNode }) {
   );
 }
 const sw = StyleSheet.create({
-  content: { padding: 28, paddingTop: 20, paddingBottom: 120, gap: 20 },
+  content: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: 28,
+    paddingTop: 24,
+    paddingBottom: 40,
+    gap: 20,
+  },
 });
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  root:        { flex: 1, backgroundColor: Colors.background },
+  root:         { flex: 1, backgroundColor: Colors.background },
 
-  progressBar: { height: 3, backgroundColor: Colors.border },
-  progressFill:{ height: 3, backgroundColor: Colors.accent },
+  progressBar:  { height: 3, backgroundColor: Colors.border },
+  progressFill: { height: 3, backgroundColor: Colors.accent },
 
-  slider:      { flexDirection: 'row', flex: 1 },
+  slider:       { flexDirection: 'row', flex: 1 },
 
-  emoji:       { alignItems: 'center' },
-  emojiText:   { fontSize: 48 },
-  stepTitle:   { fontSize: 26, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
-  stepSub:     { fontSize: 15, color: Colors.textSecondary, lineHeight: 22, marginTop: -8 },
+  iconWrap:     { alignItems: 'center', paddingVertical: 4 },
 
-  nameWrap:    { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: Colors.card, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 14, paddingVertical: 14 },
-  nameInput:   { flex: 1, fontSize: 16, color: Colors.text },
+  stepTitle:    { fontSize: 26, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
+  stepSub:      { fontSize: 15, color: Colors.textSecondary, lineHeight: 22, marginTop: -8 },
 
-  vibeGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  vibeChip:  { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 99, borderWidth: 1.5 },
-  vibeLabel: { fontSize: 14, fontWeight: '600' },
+  nameWrap:     { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: Colors.card, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 14, paddingVertical: 14 },
+  nameInput:    { flex: 1, fontSize: 16, color: Colors.text },
 
-  budgetList:      { gap: 10 },
-  budgetRow:       { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, borderRadius: 16, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.surface },
-  budgetRowActive: { borderColor: Colors.accent, backgroundColor: Colors.accentDim },
-  budgetIcon:      { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.card },
-  budgetIconActive:{ backgroundColor: Colors.accentDim },
-  budgetLabel:     { fontSize: 15, fontWeight: '700', color: Colors.text },
+  vibeGrid:     { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  vibeChip:     { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 99, borderWidth: 1.5 },
+  vibeLabel:    { fontSize: 14, fontWeight: '600' },
+
+  budgetList:       { gap: 10 },
+  budgetRow:        { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, borderRadius: 16, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.surface },
+  budgetRowActive:  { borderColor: Colors.accent, backgroundColor: Colors.accentDim },
+  budgetIcon:       { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.card },
+  budgetIconActive: { backgroundColor: Colors.accentDim },
+  budgetLabel:      { fontSize: 15, fontWeight: '700', color: Colors.text },
   budgetLabelActive:{ color: Colors.accentLight },
-  budgetSub:       { fontSize: 12, color: Colors.textTertiary, marginTop: 2 },
+  budgetSub:        { fontSize: 12, color: Colors.textTertiary, marginTop: 2 },
 
   distanceGrid:        { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
   distanceChip:        { width: 90, height: 90, borderRadius: 20, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.border, backgroundColor: Colors.surface },
@@ -358,15 +388,15 @@ const styles = StyleSheet.create({
   distanceUnit:        { fontSize: 12, color: Colors.textTertiary, marginTop: -2 },
   distanceUnitActive:  { color: Colors.accent },
 
-  levelSection:{ gap: 10, backgroundColor: Colors.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder },
-  levelTitle:  { fontSize: 14, fontWeight: '700', color: Colors.text },
-  levelSub:    { fontSize: 12, color: Colors.textSecondary, marginTop: -6 },
+  levelSection: { gap: 10, backgroundColor: Colors.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder },
+  levelTitle:   { fontSize: 14, fontWeight: '700', color: Colors.text },
+  levelSub:     { fontSize: 12, color: Colors.textSecondary, marginTop: -6 },
 
-  nav:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, paddingBottom: 36, borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.background },
-  backBtn:     { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
-  dots:        { flexDirection: 'row', gap: 6 },
-  dot:         { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.border },
-  dotActive:   { width: 20, backgroundColor: Colors.accent },
-  nextBtn:     { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.accent },
-  nextBtnText: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  nav:          { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 16, borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.background },
+  backBtn:      { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
+  dots:         { flexDirection: 'row', gap: 6 },
+  dot:          { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.border },
+  dotActive:    { width: 20, backgroundColor: Colors.accent },
+  nextBtn:      { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.accent },
+  nextBtnText:  { fontSize: 14, fontWeight: '700', color: Colors.text },
 });
