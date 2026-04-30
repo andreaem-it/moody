@@ -31,7 +31,7 @@ export default function FeedScreen() {
   const shownIdsRef = useRef<Set<string>>(new Set());
 
   const loadFeed = useCallback(async (ctx: ContextMode, isRefresh = false) => {
-    if (!userId) return; // wait until device ID is ready
+    if (!userId) return;
     if (!isRefresh) setLoading(true);
     setError(null);
     try {
@@ -39,16 +39,29 @@ export default function FeedScreen() {
       setEvents(data);
       shownIdsRef.current = new Set(data.map((e) => e.id));
     } catch {
-      setError('Impossibile caricare il feed. Assicurati che il backend sia in esecuzione.');
+      setError('Controlla la tua connessione internet e riprova.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, [userId]);
 
+  // Avvia il caricamento quando userId è pronto
   useEffect(() => {
     loadFeed(context);
   }, [context, loadFeed]);
+
+  // Timeout di sicurezza: se userId non arriva entro 10s, esci dal loading
+  useEffect(() => {
+    if (!loading) return;
+    const timer = setTimeout(() => {
+      if (!userId) {
+        setLoading(false);
+        setError('Controlla la tua connessione internet e riprova.');
+      }
+    }, 10_000);
+    return () => clearTimeout(timer);
+  }, [loading, userId]);
 
   /**
    * Soft update: remove the card immediately, then silently fetch
