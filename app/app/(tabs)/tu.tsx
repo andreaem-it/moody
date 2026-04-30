@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
@@ -264,6 +265,12 @@ export default function TuScreen() {
             <PrefRow icon="flash-outline"   label="Energia preferita"  value={`${Math.round(profile.energyPreference * 100)}%`}  bar={profile.energyPreference}  barColor={Colors.vibe.energetic} />
             <PrefRow icon="people-outline"  label="Socialità preferita" value={`${Math.round(profile.socialPreference * 100)}%`}  bar={profile.socialPreference}  barColor={Colors.vibe.social}    />
             <PrefRow icon="compass-outline" label="Voglia di scoprire"  value={`${Math.round(profile.explorationRate * 100)}%`}   bar={profile.explorationRate}   barColor={Colors.accent}         />
+
+            <TouchableOpacity style={styles.settingsBtn} onPress={() => router.push('/settings')} activeOpacity={0.8}>
+              <Ionicons name="settings-outline" size={16} color={Colors.accentLight} />
+              <Text style={styles.settingsBtnText}>Modifica preferenze</Text>
+              <Ionicons name="chevron-forward" size={14} color={Colors.accent} style={{ marginLeft: 'auto' }} />
+            </TouchableOpacity>
           </Section>
         )}
 
@@ -451,4 +458,7 @@ const styles = StyleSheet.create({
 
   infoBox:  { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 14, backgroundColor: Colors.surface, borderRadius: 12 },
   infoText: { flex: 1, fontSize: 12, color: Colors.textTertiary, lineHeight: 18 },
+
+  settingsBtn:     { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: Colors.accentDim, marginTop: 4 },
+  settingsBtnText: { fontSize: 13, fontWeight: '700', color: Colors.accentLight },
 });

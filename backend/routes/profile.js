@@ -1,6 +1,6 @@
 const express = require('express');
 const multer  = require('multer');
-const { getProfile, updateProfile } = require('../controllers/profileController');
+const { getProfile, updateProfile, updatePreferences } = require('../controllers/profileController');
 const { getUserActivity }           = require('../controllers/activityController');
 
 const router = express.Router();
@@ -15,8 +15,9 @@ const upload = multer({
   },
 });
 
-router.get('/:userId',          getProfile);
-router.put('/:userId',          upload.single('avatar'), updateProfile);
-router.get('/:userId/activity', getUserActivity);
+router.get('/:userId',                getProfile);
+router.put('/:userId',                upload.single('avatar'), updateProfile);
+router.patch('/:userId/preferences',  updatePreferences);
+router.get('/:userId/activity',       getUserActivity);
 
 module.exports = router;

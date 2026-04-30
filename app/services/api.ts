@@ -175,6 +175,20 @@ export async function fetchActivity(userId: string): Promise<UserActivity> {
   return res.data;
 }
 
+export interface ProfilePreferences {
+  preferredVibes:   string[];
+  maxDistanceKm:    number;
+  budgetLevel:      'low' | 'medium' | 'high';
+  energyPreference: number;
+  socialPreference: number;
+  explorationRate:  number;
+}
+
+export async function updatePreferences(userId: string, prefs: Partial<ProfilePreferences>): Promise<UserProfile> {
+  const res = await client.patch(`/profile/${userId}/preferences`, prefs);
+  return res.data;
+}
+
 /**
  * Update display name and/or profile avatar.
  * Uses fetch (not axios) to send multipart/form-data with correct boundary.

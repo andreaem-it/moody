@@ -47,4 +47,34 @@ async function updateProfile(req, res, next) {
   }
 }
 
-module.exports = { getProfile, updateProfile };
+/**
+ * PATCH /profile/:userId/preferences
+ * Accepts JSON: { preferredVibes, maxDistanceKm, budgetLevel,
+ *                 energyPreference, socialPreference, explorationRate }
+ */
+async function updatePreferences(req, res, next) {
+  try {
+    const { userId } = req.params;
+    await profileRepository.createIfNotExists(userId);
+
+    const {
+      preferredVibes, maxDistanceKm, budgetLevel,
+      energyPreference, socialPreference, explorationRate,
+    } = req.body;
+
+    const profile = await profileRepository.update(userId, {
+      preferredVibes:   Array.isArray(preferredVibes) ? preferredVibes : undefined,
+      maxDistanceKm:    maxDistanceKm    != null ? Number(maxDistanceKm)    : undefined,
+      budgetLevel:      budgetLevel      != null ? budgetLevel              : undefined,
+      energyPreference: energyPreference != null ? Number(energyPreference) : undefined,
+      socialPreference: socialPreference != null ? Number(socialPreference) : undefined,
+      explorationRate:  explorationRate  != null ? Number(explorationRate)  : undefined,
+    });
+
+    res.json(profile);
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { getProfile, updateProfile, updatePreferences };
