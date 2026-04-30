@@ -4,7 +4,7 @@ import {
   ScrollView, Animated, Dimensions, ActivityIndicator,
   TextInput, KeyboardAvoidingView, Platform, Image, Keyboard,
 } from 'react-native';
-import { isWeb } from '../utils/platform';
+import Svg, { Defs, RadialGradient, Stop, Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -505,22 +505,22 @@ const LogoAnimated = React.forwardRef<LogoAnimatedRef>(function LogoAnimated(_, 
         transform: [{ scale }, { rotate: rotateStr }],
         opacity,
         marginBottom: 50,
-        // overflow visible: permette al glow sfumato di fuoriuscire dai bordi
         overflow: 'visible',
       }]}
     >
-      {/* Glow esterno — più grande, più diffuso */}
-      <View style={[la.glowBase, la.glowOuter,
-        isWeb
-          ? ({ filter: 'blur(48px)' } as any)
-          : { shadowColor: Colors.accent, shadowOpacity: 0.55, shadowRadius: 48, shadowOffset: { width: 0, height: 0 } }
-      ]} />
-      {/* Glow interno — più brillante, più concentrato */}
-      <View style={[la.glowBase, la.glowInner,
-        isWeb
-          ? ({ filter: 'blur(28px)' } as any)
-          : { shadowColor: Colors.accentLight, shadowOpacity: 0.7, shadowRadius: 28, shadowOffset: { width: 0, height: 0 } }
-      ]} />
+      {/* Radial gradient: da viola a trasparente */}
+      <Svg style={la.svg} viewBox="0 0 320 320">
+        <Defs>
+          <RadialGradient id="glow" cx="50%" cy="50%" r="50%">
+            <Stop offset="0%"   stopColor={Colors.accentLight} stopOpacity="0.75" />
+            <Stop offset="38%"  stopColor={Colors.accent}      stopOpacity="0.40" />
+            <Stop offset="65%"  stopColor={Colors.accent}      stopOpacity="0.12" />
+            <Stop offset="100%" stopColor={Colors.accent}      stopOpacity="0"    />
+          </RadialGradient>
+        </Defs>
+        <Circle cx="160" cy="160" r="160" fill="url(#glow)" />
+      </Svg>
+
       <Image
         source={require('../assets/moody_solo_1024.png')}
         style={la.logo}
@@ -537,21 +537,13 @@ const la = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  glowBase: {
+  svg: {
     position: 'absolute',
-    borderRadius: 999,
-  },
-  glowOuter: {
-    width: 240,
-    height: 240,
-    backgroundColor: Colors.accent + 'AA',     // ~67% opacity base
-    opacity: 0.4,
-  },
-  glowInner: {
-    width: 185,
-    height: 185,
-    backgroundColor: Colors.accentLight + 'CC', // ~80% opacity base
-    opacity: 0.55,
+    width: 320,
+    height: 320,
+    // centra il 320×320 sul container 160×160
+    top: -80,
+    left: -80,
   },
   logo: { width: 160, height: 160 },
 });
