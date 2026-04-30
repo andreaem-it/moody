@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
+  View, Text, ScrollView, Pressable,
   StyleSheet, ActivityIndicator, FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -66,16 +66,18 @@ export default function MoodScreen() {
 
       {/* Context pills */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.contextRow}>
-        {MOOD_QUESTIONS.map((q) => (
-          <TouchableOpacity
-            key={q.context}
-            style={[styles.ctxPill, context === q.context && styles.ctxPillActive]}
-            onPress={() => setContext(q.context)}
-            activeOpacity={0.75}
-          >
-            <Text style={[styles.ctxLabel, context === q.context && styles.ctxLabelActive]}>{q.label}</Text>
-          </TouchableOpacity>
-        ))}
+        {MOOD_QUESTIONS.map((q) => {
+          const isActive = context === q.context;
+          return (
+            <Pressable
+              key={q.context}
+              style={[styles.ctxPill, isActive && styles.ctxPillActive]}
+              onPress={() => setContext(q.context)}
+            >
+              <Text style={[styles.ctxLabel, isActive && styles.ctxLabelActive]}>{q.label}</Text>
+            </Pressable>
+          );
+        })}
       </ScrollView>
 
       {/* Vibe selector */}
@@ -86,15 +88,17 @@ export default function MoodScreen() {
             const cfg = VIBES[vibe];
             const active = selectedVibes.has(vibe);
             return (
-              <TouchableOpacity
+              <Pressable
                 key={vibe}
-                style={[styles.vibeChip, { borderColor: active ? cfg.color : Colors.border, backgroundColor: active ? cfg.color + '25' : Colors.surface }]}
+                style={[
+                  styles.vibeChip,
+                  { borderColor: active ? cfg.color : Colors.border, backgroundColor: active ? cfg.color + '25' : Colors.surface },
+                ]}
                 onPress={() => toggleVibe(vibe)}
-                activeOpacity={0.75}
               >
                 <Ionicons name={cfg.icon as any} size={14} color={active ? cfg.color : Colors.textTertiary} />
                 <Text style={[styles.vibeLabel, { color: active ? cfg.color : Colors.textSecondary }]}>{cfg.label}</Text>
-              </TouchableOpacity>
+              </Pressable>
             );
           })}
         </ScrollView>
@@ -107,9 +111,9 @@ export default function MoodScreen() {
           {selectedVibes.size > 0 ? ` · ${[...selectedVibes].length} VIBE SELEZIONATE` : ''}
         </Text>
         {selectedVibes.size > 0 && (
-          <TouchableOpacity onPress={() => setSelectedVibes(new Set())}>
+          <Pressable onPress={() => setSelectedVibes(new Set())}>
             <Text style={styles.clearBtn}>Rimuovi filtri</Text>
-          </TouchableOpacity>
+          </Pressable>
         )}
       </View>
 
@@ -121,9 +125,9 @@ export default function MoodScreen() {
         <View style={styles.centered}>
           <Ionicons name="sad-outline" size={48} color={Colors.textTertiary} />
           <Text style={styles.emptyText}>Nessun evento per queste vibe</Text>
-          <TouchableOpacity onPress={() => setSelectedVibes(new Set())} style={styles.resetBtn}>
+          <Pressable onPress={() => setSelectedVibes(new Set())} style={styles.resetBtn}>
             <Text style={styles.resetBtnText}>Rimuovi filtri</Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
       ) : (
         <FlatList
