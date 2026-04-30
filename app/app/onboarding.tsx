@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useImperativeHandle } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   ScrollView, Animated, Dimensions, ActivityIndicator,
@@ -137,12 +137,22 @@ export default function OnboardingScreen() {
 
   const slideX  = useRef(new Animated.Value(0)).current;
   const stepIdx = STEPS.indexOf(step);
+  const logoRef = useRef<LogoAnimatedRef>(null);
 
   function goNext() {
     const next = STEPS[stepIdx + 1];
     if (!next) { finish(); return; }
-    Animated.timing(slideX, { toValue: -(stepIdx + 1) * SCREEN_W, duration: 300, useNativeDriver: true }).start();
-    setStep(next);
+
+    const doTransition = () => {
+      Animated.timing(slideX, { toValue: -(stepIdx + 1) * SCREEN_W, duration: 300, useNativeDriver: true }).start();
+      setStep(next);
+    };
+
+    if (step === 'benvenuto' && logoRef.current) {
+      logoRef.current.playExit(doTransition);
+    } else {
+      doTransition();
+    }
   }
 
   function goBack() {
@@ -217,7 +227,7 @@ export default function OnboardingScreen() {
         {/* ── Step 0: Benvenuto ── */}
         <StepWrap>
           <View style={styles.iconWrap}>
-            <LogoAnimated />
+            <LogoAnimated ref={logoRef} />
           </View>
           <Text style={styles.stepTitle}>Ciao! Sono Moody.</Text>
           <Text style={styles.stepSub}>
@@ -419,27 +429,48 @@ const lv = StyleSheet.create({
 
 // ─── LogoAnimated ─────────────────────────────────────────────────────────────
 
-function LogoAnimated() {
-  const scale   = useRef(new Animated.Value(1)).current;
-  const opacity = useRef(new Animated.Value(0.88)).current;
+interface LogoAnimatedRef {
+  playExit: (onDone: () => void) => void;
+}
+
+const LogoAnimated = React.forwardRef<LogoAnimatedRef>(function LogoAnimated(_, ref) {
+  const scale    = useRef(new Animated.Value(1)).current;
+  const opacity  = useRef(new Animated.Value(0.78)).current;
+  const rotation = useRef(new Animated.Value(0)).current;
+  const loopAnim = useRef<Animated.CompositeAnimation | null>(null);
+
+  const rotateStr = rotation.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
 
   useEffect(() => {
-    Animated.loop(
+    loopAnim.current = Animated.loop(
       Animated.sequence([
         Animated.parallel([
-          Animated.timing(scale,   { toValue: 1.045, duration: 2200, useNativeDriver: true }),
-          Animated.timing(opacity, { toValue: 1.0,   duration: 2200, useNativeDriver: true }),
+          Animated.timing(scale,   { toValue: 1.10, duration: 2000, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 1.0,  duration: 2000, useNativeDriver: true }),
         ]),
         Animated.parallel([
-          Animated.timing(scale,   { toValue: 1.0,  duration: 2200, useNativeDriver: true }),
-          Animated.timing(opacity, { toValue: 0.88, duration: 2200, useNativeDriver: true }),
+          Animated.timing(scale,   { toValue: 1.0,  duration: 2000, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0.78, duration: 2000, useNativeDriver: true }),
         ]),
       ]),
-    ).start();
+    );
+    loopAnim.current.start();
+    return () => { loopAnim.current?.stop(); };
   }, [scale, opacity]);
 
+  useImperativeHandle(ref, () => ({
+    playExit: (onDone: () => void) => {
+      loopAnim.current?.stop();
+      Animated.parallel([
+        Animated.timing(rotation, { toValue: 1,   duration: 500, useNativeDriver: true }),
+        Animated.timing(scale,    { toValue: 0,   duration: 500, useNativeDriver: true }),
+        Animated.timing(opacity,  { toValue: 0,   duration: 300, useNativeDriver: true }),
+      ]).start(() => onDone());
+    },
+  }));
+
   return (
-    <Animated.View style={{ transform: [{ scale }], opacity }}>
+    <Animated.View style={{ transform: [{ scale }, { rotate: rotateStr }], opacity, marginBottom: 50 }}>
       <Image
         source={require('../assets/moody_solo_1024.png')}
         style={la.logo}
@@ -447,7 +478,7 @@ function LogoAnimated() {
       />
     </Animated.View>
   );
-}
+});
 
 const la = StyleSheet.create({
   logo: { width: 160, height: 160 },
