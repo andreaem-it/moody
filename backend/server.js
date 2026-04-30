@@ -26,17 +26,25 @@ initializeDatabase();
 runMigrations();
 seedDatabase();
 
-// Routes
-app.use('/events',  eventsRouter);
-app.use('/feed',    feedRouter);
-app.use('/upload',  uploadRouter);
-app.use('/profile', profileRouter);
-app.use('/social',  socialRouter);
+// Routes — montati sia su /api/* (Vercel) che su /* (locale)
+function mountRoutes(router) {
+  router.use('/events',  eventsRouter);
+  router.use('/feed',    feedRouter);
+  router.use('/upload',  uploadRouter);
+  router.use('/profile', profileRouter);
+  router.use('/social',  socialRouter);
+  router.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
 
-if (process.env.NODE_ENV !== 'production') {
-  app.use('/debug', debugRouter);
+  if (process.env.NODE_ENV !== 'production') {
+    router.use('/debug', debugRouter);
+  }
 }
-app.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
+
+mountRoutes(app);
+
+const apiRouter = express.Router();
+mountRoutes(apiRouter);
+app.use('/api', apiRouter);
 
 app.use(errorHandler);
 

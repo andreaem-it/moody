@@ -1,0 +1,16 @@
+{
+  "name": "moody",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently --names \"BACKEND,APP\" --prefix-colors \"cyan,magenta\" \"npm run dev --prefix backend\" \"npm run web --prefix app\"",
+    "build": "npm run build:app",
+    "build:app": "npm run export --prefix app",
+    "install:all": "npm install --prefix backend && npm install --prefix app",
+    "start:backend": "npm run start --prefix backend",
+    "start:app": "npm run web --prefix app"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

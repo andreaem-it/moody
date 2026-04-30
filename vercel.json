@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "backend/server.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "app/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "buildCommand": "npm run export",
+        "outputDirectory": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "backend/server.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "app/$1"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
+}
