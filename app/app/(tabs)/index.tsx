@@ -23,7 +23,7 @@ export default function FeedScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const userId = useDeviceId();
-  const { location, loading: locationLoading } = useUserLocation();
+  const { location } = useUserLocation();
 
   const [context, setContext] = useState<ContextMode>('tonight');
   const [events, setEvents] = useState<Event[]>([]);
@@ -32,12 +32,19 @@ export default function FeedScreen() {
   const [error, setError] = useState<string | null>(null);
   const shownIdsRef = useRef<Set<string>>(new Set());
 
-  const loadFeed = useCallback(async (ctx: ContextMode, isRefresh = false) => {
+  // Ref che traccia se abbiamo già ricaricato il feed con le coordinate reali
+  const locationReloadedRef = useRef(false);
+
+  const loadFeed = useCallback(async (
+    ctx: ContextMode,
+    isRefresh = false,
+    coords?: { lat: number; lng: number } | null,
+  ) => {
     if (!userId) return;
     if (!isRefresh) setLoading(true);
     setError(null);
     try {
-      const data = await fetchFeed(ctx, userId, location);
+      const data = await fetchFeed(ctx, userId, coords);
       setEvents(data);
       shownIdsRef.current = new Set(data.map((e) => e.id));
     } catch {
@@ -46,17 +53,22 @@ export default function FeedScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  // location volutamente escluso: ricarica solo su cambio context/userId
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, context]);
+  }, [userId]);
 
-  // Avvia il caricamento quando userId è pronto E la location non è più in attesa
+  // Carica il feed non appena userId è disponibile (senza aspettare la posizione)
   useEffect(() => {
-    if (!userId || locationLoading) return;
+    if (!userId) return;
     loadFeed(context);
-  // loadFeed dipende già da context e userId via useCallback
+    locationReloadedRef.current = false;
+  }, [userId, context, loadFeed]);
+
+  // Ricarica silenziosamente una sola volta quando le coordinate diventano disponibili
+  useEffect(() => {
+    if (!location || !userId || locationReloadedRef.current) return;
+    locationReloadedRef.current = true;
+    loadFeed(context, true, location);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, locationLoading, context]);
+  }, [location]);
 
   // Timeout di sicurezza: se userId non arriva entro 10s, esci dal loading
   useEffect(() => {
@@ -91,11 +103,11 @@ export default function FeedScreen() {
     } catch {
       // Not critical — list just stays shorter
     }
-  }, [context, userId, location]);
+  }, [context, userId, location]); // location opzionale: se null usa default backend
 
   const handleRefresh = () => {
     setRefreshing(true);
-    loadFeed(context, true);
+    loadFeed(context, true, location);
   };
 
   return (
