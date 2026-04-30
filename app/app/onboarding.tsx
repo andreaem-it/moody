@@ -84,10 +84,19 @@ export default function OnboardingScreen() {
   };
 
   async function finish() {
-    if (!userId) return;
+    if (!userId) {
+      // userId non ancora pronto: riprova tra poco
+      setTimeout(finish, 300);
+      return;
+    }
     setSaving(true);
     try {
-      await Promise.all([
+      // Marca l'onboarding come completato e naviga subito
+      await AsyncStorage.setItem(ONBOARDING_KEY, '1');
+      router.replace('/(tabs)');
+
+      // Salva le preferenze in background — non blocca la navigazione
+      Promise.all([
         name.trim() ? updateProfileMeta(userId, { displayName: name.trim() }) : Promise.resolve(),
         updatePreferences(userId, {
           preferredVibes:   Array.from(vibes),
@@ -97,9 +106,9 @@ export default function OnboardingScreen() {
           socialPreference: social,
           explorationRate:  exploration,
         }),
-      ]);
-      await AsyncStorage.setItem(ONBOARDING_KEY, '1');
-      router.replace('/(tabs)');
+      ]).catch(() => {
+        // Le preferenze useranno i valori di default; modificabili da Impostazioni
+      });
     } catch {
       setSaving(false);
     }
