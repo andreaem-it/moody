@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
   subtitle: { fontSize: 14, color: Colors.textSecondary, marginTop: 2 },
 
-  contextRow: { paddingHorizontal: 20, paddingVertical: 10, gap: 8, alignItems: 'center' },
+  contextRow: { paddingHorizontal: 20, paddingVertical: 10, gap: 8, alignItems: 'flex-start' },
   ctxPill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 99, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.surface },
   ctxPillActive: { backgroundColor: Colors.accentDim, borderColor: Colors.accent },
   ctxLabel: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
 
   vibeSection: { paddingBottom: 4 },
   sectionLabel: { fontSize: 11, fontWeight: '700', color: Colors.textTertiary, letterSpacing: 1, paddingHorizontal: 20, marginBottom: 8 },
-  vibeRow: { paddingHorizontal: 20, gap: 8, alignItems: 'center' },
+  vibeRow: { paddingHorizontal: 20, gap: 8, alignItems: 'flex-start' },
   vibeChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 99, borderWidth: 1.5 },
   vibeLabel: { fontSize: 13, fontWeight: '600' },
 
