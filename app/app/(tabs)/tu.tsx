@@ -12,8 +12,10 @@ import { Colors } from '../../constants/colors';
 import { VIBES } from '../../constants/vibes';
 import { fetchProfile, fetchActivity, updateProfileMeta } from '../../services/api';
 import type { UserProfile, UserActivity } from '../../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDeviceId } from '../../hooks/useDeviceId';
 import { formatHandle, formatFriendCode } from '../../utils/format';
+import { ONBOARDING_KEY } from '../onboarding';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -271,6 +273,31 @@ export default function TuScreen() {
               <Text style={styles.settingsBtnText}>Modifica preferenze</Text>
               <Ionicons name="chevron-forward" size={14} color={Colors.accent} style={{ marginLeft: 'auto' }} />
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.replayBtn}
+              activeOpacity={0.8}
+              onPress={() =>
+                Alert.alert(
+                  'Riavvia onboarding',
+                  'Vuoi rivedere la configurazione iniziale? Il tuo profilo attuale verrà sovrascritto al termine.',
+                  [
+                    { text: 'Annulla', style: 'cancel' },
+                    {
+                      text: 'Riavvia',
+                      style: 'destructive',
+                      onPress: async () => {
+                        await AsyncStorage.removeItem(ONBOARDING_KEY);
+                        router.replace('/onboarding');
+                      },
+                    },
+                  ],
+                )
+              }
+            >
+              <Ionicons name="refresh-outline" size={16} color={Colors.textSecondary} />
+              <Text style={styles.replayBtnText}>Riavvia onboarding</Text>
+            </TouchableOpacity>
           </Section>
         )}
 
@@ -461,4 +488,7 @@ const styles = StyleSheet.create({
 
   settingsBtn:     { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: Colors.accentDim, marginTop: 4 },
   settingsBtnText: { fontSize: 13, fontWeight: '700', color: Colors.accentLight },
+
+  replayBtn:     { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, marginTop: 4 },
+  replayBtnText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
 });
