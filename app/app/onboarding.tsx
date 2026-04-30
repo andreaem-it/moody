@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   ScrollView, Animated, Dimensions, ActivityIndicator,
@@ -44,6 +44,82 @@ function nearestStep(v: number) {
 const STEPS = ['benvenuto', 'vibe', 'budget', 'distanza', 'energia'] as const;
 type Step = typeof STEPS[number];
 
+// ─── Processing messages ──────────────────────────────────────────────────────
+
+interface ProcessingMessage {
+  icon: keyof typeof Ionicons.glyphMap;
+  text: string;
+  hold: number; // ms
+}
+
+const SUGGESTION_ICONS: Array<keyof typeof Ionicons.glyphMap> = [
+  'musical-notes-outline', 'restaurant-outline', 'color-palette-outline',
+  'flash-outline', 'people-outline', 'star-outline', 'moon-outline', 'water-outline',
+];
+
+function buildMessages(
+  name: string,
+  vibes: Set<Vibe>,
+  distance: number,
+): ProcessingMessage[] {
+  const vibeList   = Array.from(vibes);
+  const vibeLabels = vibeList.map((v) => VIBES[v]?.label ?? v);
+
+  const vibeText = vibeLabels.length === 0
+    ? 'Ti piacciono tutti i tipi di eventi'
+    : vibeLabels.length === 1
+      ? `Ti piace tutto ciò che è ${vibeLabels[0]}`
+      : `Ti piace ${vibeLabels.slice(0, -1).join(', ')} e ${vibeLabels[vibeLabels.length - 1]}`;
+
+  const [icon1, icon2, icon3] = vibeList.length >= 3
+    ? vibeList.map((v) => VIBES[v]?.icon as keyof typeof Ionicons.glyphMap)
+    : SUGGESTION_ICONS.slice(0, 3);
+
+  const msgs: ProcessingMessage[] = [
+    {
+      icon: name.trim() ? 'person-circle-outline' : 'hand-left-outline',
+      text: name.trim() ? `Ok, ti chiami ${name.trim()}` : 'Ok, benvenuto in Moody.',
+      hold: 900,
+    },
+    {
+      icon: vibeList[0] ? (VIBES[vibeList[0]]?.icon as keyof typeof Ionicons.glyphMap) : 'color-palette-outline',
+      text: vibeText,
+      hold: 1000,
+    },
+    {
+      icon: 'navigate-outline',
+      text: `Di solito ti sposti ${distance === 100 ? '100+' : distance} km`,
+      hold: 900,
+    },
+    {
+      icon: 'construct-outline',
+      text: 'Sto preparando il tuo profilo...',
+      hold: 1100,
+    },
+    {
+      icon: icon1 ?? 'star-outline',
+      text: 'Forse ti può piacere...',
+      hold: 700,
+    },
+    {
+      icon: icon2 ?? 'moon-outline',
+      text: 'O magari...',
+      hold: 700,
+    },
+    {
+      icon: icon3 ?? 'flash-outline',
+      text: 'Credo impazzirai per...',
+      hold: 700,
+    },
+    {
+      icon: 'checkmark-circle-outline',
+      text: 'Ok ci siamo, vediamo',
+      hold: 1000,
+    },
+  ];
+  return msgs;
+}
+
 export default function OnboardingScreen() {
   const userId  = useDeviceId();
   const insets  = useSafeAreaInsets();
@@ -57,6 +133,7 @@ export default function OnboardingScreen() {
   const [social,      setSocial]      = useState(0.5);
   const [exploration, setExploration] = useState(0.3);
   const [saving,      setSaving]      = useState(false);
+  const [processing,  setProcessing]  = useState(false);
 
   const slideX  = useRef(new Animated.Value(0)).current;
   const stepIdx = STEPS.indexOf(step);
@@ -83,22 +160,22 @@ export default function OnboardingScreen() {
     });
   };
 
-  async function finish() {
-    if (!userId) {
-      // userId non ancora pronto: riprova tra poco
-      setTimeout(finish, 300);
-      return;
-    }
-    setSaving(true);
-    try {
-      // Marca l'onboarding come completato e naviga subito
-      await AsyncStorage.setItem(ONBOARDING_KEY, '1');
-      router.replace('/(tabs)');
+  function finish() {
+    // Mostra subito la schermata di calcolo (non aspetta userId)
+    setProcessing(true);
+  }
 
-      // Salva le preferenze in background — non blocca la navigazione
+  const onProcessingDone = useCallback(async () => {
+    const id = userId;
+    try {
+      await AsyncStorage.setItem(ONBOARDING_KEY, '1');
+    } catch { /* ignore */ }
+    router.replace('/(tabs)');
+    // Salva preferenze in background
+    if (id) {
       Promise.all([
-        name.trim() ? updateProfileMeta(userId, { displayName: name.trim() }) : Promise.resolve(),
-        updatePreferences(userId, {
+        name.trim() ? updateProfileMeta(id, { displayName: name.trim() }) : Promise.resolve(),
+        updatePreferences(id, {
           preferredVibes:   Array.from(vibes),
           maxDistanceKm:    distance,
           budgetLevel:      budget,
@@ -106,15 +183,22 @@ export default function OnboardingScreen() {
           socialPreference: social,
           explorationRate:  exploration,
         }),
-      ]).catch(() => {
-        // Le preferenze useranno i valori di default; modificabili da Impostazioni
-      });
-    } catch {
-      setSaving(false);
+      ]).catch(() => { /* modificabili da Impostazioni */ });
     }
-  }
+  }, [userId, name, vibes, distance, budget, energy, social, exploration]);
 
   const isLast = stepIdx === STEPS.length - 1;
+
+  if (processing) {
+    return (
+      <ProcessingOverlay
+        messages={buildMessages(name, vibes, distance)}
+        onDone={onProcessingDone}
+        insetTop={insets.top}
+        insetBottom={insets.bottom}
+      />
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -408,4 +492,79 @@ const styles = StyleSheet.create({
   dotActive:    { width: 20, backgroundColor: Colors.accent },
   nextBtn:      { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.accent },
   nextBtnText:  { fontSize: 14, fontWeight: '700', color: Colors.text },
+});
+
+// ─── ProcessingOverlay ────────────────────────────────────────────────────────
+
+interface ProcessingOverlayProps {
+  messages: ProcessingMessage[];
+  onDone: () => void;
+  insetTop: number;
+  insetBottom: number;
+}
+
+function ProcessingOverlay({ messages, onDone, insetTop, insetBottom }: ProcessingOverlayProps) {
+  const [idx,     setIdx]     = useState(0);
+  const scaleAnim   = useRef(new Animated.Value(0.6)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+
+  const runMessage = useCallback((i: number) => {
+    scaleAnim.setValue(0.6);
+    opacityAnim.setValue(0);
+    setIdx(i);
+
+    Animated.sequence([
+      // Pop in
+      Animated.parallel([
+        Animated.spring(scaleAnim,   { toValue: 1,   friction: 6, tension: 120, useNativeDriver: true }),
+        Animated.timing(opacityAnim, { toValue: 1,   duration: 180, useNativeDriver: true }),
+      ]),
+      // Hold
+      Animated.delay(messages[i]?.hold ?? 800),
+      // Pop out
+      Animated.parallel([
+        Animated.timing(scaleAnim,   { toValue: 0.6, duration: 160, useNativeDriver: true }),
+        Animated.timing(opacityAnim, { toValue: 0,   duration: 160, useNativeDriver: true }),
+      ]),
+    ]).start(() => {
+      if (i < messages.length - 1) {
+        runMessage(i + 1);
+      } else {
+        onDone();
+      }
+    });
+  }, [messages, onDone, scaleAnim, opacityAnim]);
+
+  useEffect(() => { runMessage(0); }, [runMessage]);
+
+  const msg = messages[idx];
+  if (!msg) return null;
+
+  return (
+    <View style={[po.root, { paddingTop: insetTop, paddingBottom: insetBottom }]}>
+      <Animated.View style={[po.content, { opacity: opacityAnim, transform: [{ scale: scaleAnim }] }]}>
+        <View style={po.iconCircle}>
+          <Ionicons name={msg.icon} size={52} color={Colors.accent} />
+        </View>
+        <Text style={po.text}>{msg.text}</Text>
+      </Animated.View>
+
+      {/* Dots progress */}
+      <View style={po.dots}>
+        {messages.map((_, i) => (
+          <View key={i} style={[po.dot, i === idx && po.dotActive]} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+const po = StyleSheet.create({
+  root:       { flex: 1, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center', padding: 40 },
+  content:    { alignItems: 'center', gap: 24, width: '100%' },
+  iconCircle: { width: 100, height: 100, borderRadius: 50, backgroundColor: Colors.accentDim, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.accent + '44' },
+  text:       { fontSize: 22, fontWeight: '700', color: Colors.text, textAlign: 'center', lineHeight: 32, letterSpacing: -0.3 },
+  dots:       { position: 'absolute', bottom: 40, flexDirection: 'row', gap: 6 },
+  dot:        { width: 5, height: 5, borderRadius: 3, backgroundColor: Colors.border },
+  dotActive:  { width: 16, backgroundColor: Colors.accent },
 });
