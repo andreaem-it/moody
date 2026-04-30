@@ -29,6 +29,13 @@
           "photosPermission": "Moody usa la tua galleria per importare locandine di eventi."
         }
       ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Moody usa la tua posizione per mostrarti eventi vicini a te.",
+          "locationWhenInUsePermission": "Moody usa la tua posizione per mostrarti eventi vicini a te."
+        }
+      ],
       "expo-asset",
       "expo-font",
       "@react-native-community/datetimepicker"

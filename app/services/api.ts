@@ -47,6 +47,7 @@ export interface Event {
   popularityBoost?: number;     // duplicate boost counter
   // feed extras
   score?: number;
+  distanceKm?: number | null;
   recommendationReason?: string;
   isSurprise?: boolean;         // lowest-ranked "wildcard" event
 }
@@ -68,8 +69,14 @@ export interface DraftEvent {
 
 // ─── Feed ────────────────────────────────────────────────────────────────────
 
-export async function fetchFeed(context: ContextMode, userId: string): Promise<Event[]> {
-  const res = await client.get('/feed', { params: { context, userId } });
+export async function fetchFeed(
+  context: ContextMode,
+  userId: string,
+  coords?: { lat: number; lng: number } | null,
+): Promise<Event[]> {
+  const params: Record<string, string | number> = { context, userId };
+  if (coords) { params.lat = coords.lat; params.lng = coords.lng; }
+  const res = await client.get('/feed', { params });
   return res.data.events;
 }
 

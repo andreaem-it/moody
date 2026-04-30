@@ -17,11 +17,13 @@ import EventCard from '../../components/EventCard';
 import { fetchFeed } from '../../services/api';
 import type { Event, ContextMode, FeedbackType } from '../../services/api';
 import { useDeviceId } from '../../hooks/useDeviceId';
+import { useUserLocation } from '../../hooks/useUserLocation';
 
 export default function FeedScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const userId = useDeviceId();
+  const { location, loading: locationLoading } = useUserLocation();
 
   const [context, setContext] = useState<ContextMode>('tonight');
   const [events, setEvents] = useState<Event[]>([]);
@@ -35,7 +37,7 @@ export default function FeedScreen() {
     if (!isRefresh) setLoading(true);
     setError(null);
     try {
-      const data = await fetchFeed(ctx, userId);
+      const data = await fetchFeed(ctx, userId, location);
       setEvents(data);
       shownIdsRef.current = new Set(data.map((e) => e.id));
     } catch {
@@ -44,12 +46,17 @@ export default function FeedScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [userId]);
+  // location volutamente escluso: ricarica solo su cambio context/userId
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, context]);
 
-  // Avvia il caricamento quando userId è pronto
+  // Avvia il caricamento quando userId è pronto E la location non è più in attesa
   useEffect(() => {
+    if (!userId || locationLoading) return;
     loadFeed(context);
-  }, [context, loadFeed]);
+  // loadFeed dipende già da context e userId via useCallback
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, locationLoading, context]);
 
   // Timeout di sicurezza: se userId non arriva entro 10s, esci dal loading
   useEffect(() => {
@@ -75,7 +82,7 @@ export default function FeedScreen() {
     shownIdsRef.current.add(eventId);
 
     try {
-      const freshFeed = await fetchFeed(context, userId);
+      const freshFeed = await fetchFeed(context, userId, location);
       const replacement = freshFeed.find((e) => !shownIdsRef.current.has(e.id));
       if (replacement) {
         shownIdsRef.current.add(replacement.id);
@@ -84,7 +91,7 @@ export default function FeedScreen() {
     } catch {
       // Not critical — list just stays shorter
     }
-  }, [context, userId]);
+  }, [context, userId, location]);
 
   const handleRefresh = () => {
     setRefreshing(true);

@@ -10,8 +10,8 @@ const checkinRepository = require('../repositories/checkinRepository');
 const moodRepository    = require('../repositories/moodRepository');
 const feedCache         = require('../services/feedCache');
 
-const DEFAULT_LAT = 45.4642; // Milan
-const DEFAULT_LNG = 9.1900;
+const DEFAULT_LAT = 42.9540; // Foligno (PG)
+const DEFAULT_LNG = 12.7026;
 
 async function enrichWithLiveData(event) {
   const [peopleCount, momentumCount, moodVotes120, moodData] = await Promise.all([
@@ -46,7 +46,8 @@ async function getFeed(req, res, next) {
 
     let ranked = rankEvents(events, profile, context, userLat, userLng);
 
-    if (ranked.length < 3 && profile.maxDistanceKm < 100) {
+    // Se il feed è scarso, allarga il raggio del 50% e riprova
+    if (ranked.length < 3 && profile.maxDistanceKm < 200) {
       const widerProfile = { ...profile, maxDistanceKm: profile.maxDistanceKm * 1.5 };
       ranked = rankEvents(events, widerProfile, context, userLat, userLng);
     }

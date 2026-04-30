@@ -74,12 +74,11 @@ function calcTimeScore(event, contextMode) {
   return 0.5;
 }
 
-function calcDistanceScore(event, userLat, userLng, maxDistanceKm) {
-  if (!event.latitude || !event.longitude) return 0.6;
-  const dist = haversine(userLat, userLng, event.latitude, event.longitude);
-  if (dist <= maxDistanceKm * 0.3) return 1.0;
-  if (dist <= maxDistanceKm * 0.6) return 0.75;
-  if (dist <= maxDistanceKm) return 0.4;
+function calcDistanceScore(distKm, maxDistanceKm) {
+  if (distKm === null) return 0.6;
+  if (distKm <= maxDistanceKm * 0.3) return 1.0;
+  if (distKm <= maxDistanceKm * 0.6) return 0.75;
+  if (distKm <= maxDistanceKm) return 0.4;
   return 0.05;
 }
 
@@ -142,7 +141,17 @@ function rankEvents(events, profile, contextMode, userLat, userLng) {
     ? profile.preferredVibes
     : JSON.parse(profile.preferredVibes || '[]');
 
-  const scored = events.map((event) => {
+  // Pre-calcola distanza e filtra hard: escludi eventi oltre maxDistanceKm*1.2
+  // (20% tolleranza per evitare feed vuoto). Eventi senza coordinate passano.
+  const HARD_LIMIT = profile.maxDistanceKm * 1.2;
+  const eventsWithDistance = events.map((event) => {
+    const distKm = (event.latitude && event.longitude)
+      ? Math.round(haversine(userLat, userLng, event.latitude, event.longitude) * 10) / 10
+      : null;
+    return { ...event, distanceKm: distKm };
+  }).filter((event) => event.distanceKm === null || event.distanceKm <= HARD_LIMIT);
+
+  const scored = eventsWithDistance.map((event) => {
     const eventVibes = Array.isArray(event.vibes) ? event.vibes : JSON.parse(event.vibes || '[]');
     const trendingScore = event.trendingScore ?? 0;
     const timeDecay = calcTimeDecay(event);
@@ -150,7 +159,7 @@ function rankEvents(events, profile, contextMode, userLat, userLng) {
     const scores = {
       vibeMatch:       calcVibeMatch(eventVibes, preferredVibes),
       timeScore:       calcTimeScore(event, contextMode),
-      distanceScore:   calcDistanceScore(event, userLat, userLng, profile.maxDistanceKm),
+      distanceScore:   calcDistanceScore(event.distanceKm, profile.maxDistanceKm),
       budgetScore:     calcBudgetScore(event.price, profile.budgetLevel),
       popularityScore: calcPopularityScore(event.peopleCount, event.popularityBoost),
       explorationScore: Math.random(),
@@ -187,5 +196,6 @@ function rankEvents(events, profile, contextMode, userLat, userLng) {
   const sorted = scored.sort((a, b) => b.score - a.score);
   return sorted.slice(0, Math.max(3, Math.min(sorted.length, 10)));
 }
+
 
 module.exports = { rankEvents, getRankingLogs };

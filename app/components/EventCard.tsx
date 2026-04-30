@@ -71,7 +71,17 @@ export default function EventCard({ event, onFeedback }: Props) {
         <Text style={styles.metaText}>{formatTime(event.time)}</Text>
         <Text style={styles.metaDot}>·</Text>
         <Ionicons name="location-outline" size={13} color={Colors.textSecondary} />
-        <Text style={styles.metaText} numberOfLines={1}>{event.location}</Text>
+        <Text style={[styles.metaText, { flex: 1 }]} numberOfLines={1}>{event.location}</Text>
+        {event.distanceKm != null && (
+          <View style={styles.distanceBadge}>
+            <Ionicons name="navigate-outline" size={11} color={Colors.textTertiary} />
+            <Text style={styles.distanceText}>
+              {event.distanceKm < 1
+                ? `${Math.round(event.distanceKm * 1000)} m`
+                : `${event.distanceKm.toFixed(event.distanceKm < 10 ? 1 : 0)} km`}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Date */}
@@ -193,6 +203,17 @@ const styles = StyleSheet.create({
   metaDot: {
     color: Colors.textTertiary,
     fontSize: 13,
+  },
+  distanceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginLeft: 4,
+  },
+  distanceText: {
+    fontSize: 12,
+    color: Colors.textTertiary,
+    fontWeight: '600',
   },
   dateText: {
     fontSize: 13,

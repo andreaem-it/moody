@@ -1,5 +1,5 @@
 /**
- * Seed script — popola Firestore con eventi di esempio.
+ * Seed script — popola Firestore con eventi di esempio intorno a Foligno (PG).
  * Uso: node backend/scripts/seed-events.js [--clear]
  *   --clear  elimina tutti gli eventi esistenti prima di inserire
  */
@@ -7,10 +7,9 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 
 const { initializeApp, cert, getApps } = require('firebase-admin/app');
-const { getFirestore, FieldValue }     = require('firebase-admin/firestore');
+const { getFirestore }                 = require('firebase-admin/firestore');
 const { v4: uuidv4 }                   = require('uuid');
 
-// ── Firebase init ─────────────────────────────────────────────────────────────
 if (!getApps().length) {
   initializeApp({
     credential: cert({
@@ -32,19 +31,19 @@ function weekend() {
   const now = new Date();
   const day = now.getDay();
   const toSat = day === 6 ? 0 : day === 0 ? 6 : 6 - day;
-  const toSun = toSat + 1;
-  return [addDays(today(), toSat), addDays(today(), toSun)];
+  return [addDays(today(), toSat), addDays(today(), toSat + 1)];
 }
 function nextHours(h) {
   const d = new Date(); d.setMinutes(0, 0, 0); d.setHours(d.getHours() + h);
   return d.toTimeString().slice(0, 5);
 }
+const pad = (n) => String(n).padStart(2, '0');
+const h   = (n) => `${pad(n)}:00`;
 
 const T  = today();
 const T1 = addDays(T, 1);
 const T2 = addDays(T, 2);
 const [SAT, SUN] = weekend();
-const NOW_H = new Date().getHours();
 
 // ── Event factory ─────────────────────────────────────────────────────────────
 function ev(title, description, date, time, location, lat, lng, price, vibes, energy, social, source = 'manual') {
@@ -56,72 +55,70 @@ function ev(title, description, date, time, location, lat, lng, price, vibes, en
     latitude: lat, longitude: lng, price,
     vibes, energyScore: energy, socialScore: social,
     sourceType: source, rawText: null, eventHash,
-    popularityBoost: Math.floor(Math.random() * 8),
+    popularityBoost: Math.floor(Math.random() * 6),
     createdAt: now, updatedAt: now,
   };
 }
 
-const pad = (n) => String(n).padStart(2, '0');
-const h   = (n) => `${pad(n)}:00`;
+// ── Luoghi reali intorno a Foligno ────────────────────────────────────────────
+// Foligno centro:   42.9540, 12.7026
+// Spello:           42.9901, 12.6737  (~4 km)
+// Bevagna:          42.9254, 12.6084  (~8 km)
+// Trevi:            42.8770, 12.7469  (~9 km)
+// Montefalco:       42.8935, 12.6517  (~12 km)
+// Assisi:           43.0707, 12.6176  (~14 km)
+// Nocera Umbra:     43.1072, 12.7879  (~17 km)
+// Spoleto:          42.7346, 12.7377  (~25 km)
+// Perugia:          43.1121, 12.3888  (~38 km)
 
-// ── Seed data ─────────────────────────────────────────────────────────────────
 const EVENTS = [
 
-  // ── STASERA (tonight = today) ─────────────────────────────────────────────
-  ev('Aperitivo in Terrazza', 'Aperitivo con vista sui tetti del centro. DJ set dal vivo e cocktail artigianali.', T, h(19), 'Terrazza Martini, Milano', 45.466, 9.191, 15, ['social','food','chill'], 0.4, 0.9),
-  ev('Live Jazz al Blue Note', 'Quartetto jazz d\'eccezione con ospite internazionale. Posti limitati.', T, h(21), 'Blue Note, Milano', 45.480, 9.197, 25, ['music','chill','social'], 0.3, 0.7),
-  ev('Serata Stand-Up Comedy', 'Tre comici emergenti della scena italiana. Ospite a sorpresa finale.', T, h(21), 'Comedy Club Zelig, Milano', 45.461, 9.177, 18, ['social','experience'], 0.6, 0.85),
-  ev('Cena al Buio', 'Esperienza gastronomica nel buio totale. Menù degustazione 5 portate.', T, h(20), 'Dans le Noir, Milano', 45.471, 9.188, 65, ['food','experience','chill'], 0.2, 0.6),
-  ev('Karaoke Night', 'La migliore serata karaoke in città. Prenotazione tavoli consigliata.', T, h(22), 'Sing Sing Karaoke, Milano', 45.458, 9.183, 5, ['social','nightlife','music'], 0.8, 1.0),
-  ev('Open Air Cinema', 'Proiezione di "La Dolce Vita" in piazza. Porta il tuo cuscino.', T, h(21), 'Piazza Sempione, Milano', 45.477, 9.173, 8, ['cultural','chill','experience'], 0.2, 0.5),
-  ev('Sushi Masterclass', 'Impara a preparare il sushi con uno chef giapponese. Max 12 persone.', T, h(19), 'Scuola di Cucina Brera, Milano', 45.474, 9.186, 45, ['food','experience'], 0.5, 0.7),
-  ev('Club Night: Techno', 'Lineup internazionale. 3 room, 8 ore di musica non stop.', T, h(23), 'Fabric Club, Milano', 45.455, 9.178, 20, ['nightlife','energetic','music'], 1.0, 0.8),
-  ev('Yoga al Tramonto', 'Sessione di yoga sulla terrazza con vista panoramica. Porta il tuo tappetino.', T, h(18), 'Rooftop Castello, Milano', 45.470, 9.179, 12, ['chill','experience'], 0.1, 0.4),
-  ev('Vernissage Fotografico', 'Inaugurazione mostra fotografica "Città e Memoria". Cocktail di benvenuto.', T, h(19), 'Galleria Carla Sozzani, Milano', 45.476, 9.189, 0, ['cultural','social'], 0.2, 0.65),
+  // ── STASERA ───────────────────────────────────────────────────────────────
+  ev('Aperitivo al Palazzo Trinci', 'Aperitivo nei chiostri del Palazzo Trinci con prodotti tipici umbri e vino locale. DJ set ambient.', T, h(19), 'Palazzo Trinci, Piazza della Repubblica, Foligno', 42.9540, 12.7026, 12, ['social','food','chill'], 0.3, 0.85),
+  ev('Live Jazz al Caffè del Centro', 'Quartetto jazz folignate. Ingresso libero consumazione. Prenotazione tavolo consigliata.', T, h(21), 'Caffè del Centro, Corso Cavour, Foligno', 42.9536, 12.7024, 0, ['music','chill','social'], 0.3, 0.7),
+  ev('Sagra della Bruschetta', 'Serata dedicata alla bruschetta umbra con olio EVO DOP locale. Vino dei Colli Martani incluso.', T, h(19), 'Piazza XX Settembre, Bevagna', 42.9254, 12.6084, 8, ['food','social','cultural'], 0.4, 0.8),
+  ev('Cinema all\'Aperto', 'Proiezione "Basilicata Coast to Coast" nella piazza medievale. Ingresso libero.', T, h(21), 'Piazza Silvestri, Bevagna', 42.9254, 12.6084, 0, ['chill','cultural','experience'], 0.2, 0.5),
+  ev('Degustazione Sagrantino', 'Degustazione guidata di 5 vini Sagrantino di Montefalco con abbinamenti di salumi locali.', T, h(19), 'Cantine Scacciadiavoli, Montefalco', 42.8935, 12.6517, 20, ['food','experience','chill'], 0.3, 0.65),
+  ev('Serata Karaoke al Vecchio Mulino', 'Karaoke bar con selezione italiana e internazionale. Drink list speciale.', T, h(22), 'Pub Il Vecchio Mulino, Via Garibaldi, Foligno', 42.9528, 12.7019, 5, ['social','nightlife','music'], 0.8, 1.0),
+  ev('Yoga al Tramonto sul Colle', 'Sessione di yoga con vista sulla Valle Umbra al tramonto. Porta il tuo tappetino.', T, h(18), 'Spello, Belvedere del Colle', 42.9901, 12.6737, 10, ['chill','experience'], 0.15, 0.4),
+  ev('Mostra Permanente Giostra', 'Visita guidata serale alla mostra della Giostra della Quintana con abiti storici originali.', T, h(20), 'Museo della Giostra della Quintana, Foligno', 42.9538, 12.7031, 7, ['cultural','experience'], 0.2, 0.5),
 
-  // ── LAST-MINUTE (next 1-4h from now) ──────────────────────────────────────
-  ev('Brunch Express', 'Tavolo libero al brunch più trendy del quartiere. Solo 2 posti rimasti.', T, nextHours(1), 'Pane e Acqua, Brera', 45.475, 9.187, 22, ['food','social','chill'], 0.3, 0.7),
-  ev('Visita Guidata Nascosta', 'Tour dei cortili segreti di Milano. Partenza immediata, max 10 persone.', T, nextHours(1), 'Piazza Duomo (ingresso nord)', 45.464, 9.192, 10, ['cultural','experience'], 0.4, 0.6),
-  ev('Escape Room: L\'Assassino', 'Un posto si è liberato. Unisciti al gruppo per la sfida più difficile.', T, nextHours(2), 'Mind The Game, Navigli', 45.451, 9.174, 18, ['experience','energetic','social'], 0.8, 0.9),
-  ev('Mercatino Vintage Flash', 'Mercatino pop-up con 30 espositori. Dura solo 3 ore.', T, nextHours(1), 'Piazza Cantore, Navigli', 45.450, 9.172, 0, ['chill','experience','cultural'], 0.3, 0.5),
-  ev('Torneo Ping Pong', 'Torneo last-minute! Iscriviti subito. Premi per i top 3.', T, nextHours(2), 'The Oval, Porta Romana', 45.453, 9.195, 8, ['energetic','social'], 0.9, 0.85),
-  ev('Tasting Birre Artigianali', 'Degustazione guidata di 6 birre artigianali locali con food pairing.', T, nextHours(1), 'Birrificio Lambrate, Lambrate', 45.478, 9.232, 20, ['food','social','chill'], 0.4, 0.8),
-  ev('DJ Set in Cortile', 'DJ set improvvisato nel cortile del palazzo storico. Ingresso libero.', T, nextHours(2), 'Cortile della Rocchetta, Castello', 45.470, 9.179, 0, ['music','social','nightlife'], 0.7, 0.9),
+  // ── LAST-MINUTE ──────────────────────────────────────────────────────────
+  ev('Aperitivo Veloce da Mario', 'Tavolo aperto al bar più frequentato di Foligno. Sfincione, olive, crostini.', T, nextHours(1), 'Bar Mario, Piazza della Repubblica, Foligno', 42.9541, 12.7027, 6, ['food','social','chill'], 0.3, 0.75),
+  ev('Passeggiata Notturna Spello', 'Tour guidato last-minute dei vicoli illuminati di Spello. Max 10 persone.', T, nextHours(1), 'Porta Consolare, Spello', 42.9901, 12.6737, 8, ['cultural','experience','chill'], 0.3, 0.6),
+  ev('Torneo Burraco al Circolo', 'Posto libero al torneo di burraco del giovedì. Tessera giornaliera disponibile.', T, nextHours(2), 'Circolo Ricreativo ARCI, Via Roma, Foligno', 42.9530, 12.7020, 5, ['social','experience'], 0.5, 0.8),
+  ev('Birre Artigianali al Chiostro', 'Birrificio locale serve 4 nuove etichette nel chiostro di San Francesco.', T, nextHours(1), 'Chiostro di San Francesco, Foligno', 42.9545, 12.7035, 15, ['food','social','chill'], 0.4, 0.8),
 
-  // ── DOMANI (T1) ───────────────────────────────────────────────────────────
-  ev('Colazione da Pasticcere', 'Laboratorio di croissant con pasticcere stellato. Include colazione.', T1, h(9), 'Pasticceria Marchesi, Cordusio', 45.465, 9.188, 35, ['food','experience'], 0.3, 0.5),
-  ev('Street Food Festival', 'Oltre 40 stand di street food da tutto il mondo. Ingresso libero.', T1, h(12), 'Piazza Gae Aulenti, Milano', 45.484, 9.189, 0, ['food','social','energetic'], 0.6, 0.85),
-  ev('Workshop Ceramica', 'Crea il tuo vaso con un maestro ceramista. Tutti i materiali inclusi.', T1, h(15), 'Atelier Brera, Milano', 45.473, 9.185, 40, ['chill','cultural','experience'], 0.2, 0.5),
-  ev('Running Club Navigli', 'Corsa serale lungo i Navigli con il gruppo più social di Milano. 5km.', T1, h(19), 'Darsena, Milano', 45.449, 9.173, 0, ['energetic','social'], 0.95, 0.8),
-  ev('Concerto Acustico', 'Singer-songwriter italiana in acustico. Solo 50 posti.', T1, h(21), 'Circolo Arci Bellezza, Milano', 45.458, 9.194, 12, ['music','chill','social'], 0.3, 0.65),
+  // ── DOMANI ────────────────────────────────────────────────────────────────
+  ev('Mercatino dell\'Antiquariato', 'Mercato mensile dell\'antiquariato e del vintage nel centro storico.', T1, h(9), 'Piazza della Repubblica, Foligno', 42.9540, 12.7026, 0, ['cultural','experience','chill'], 0.25, 0.55),
+  ev('Trekking Valle Umbra', 'Percorso ad anello di 12 km con vista su Foligno e Trevi. Guida naturalistico-ambientale.', T1, h(8), 'Parcheggio Porta Romana, Foligno', 42.9510, 12.7050, 15, ['energetic','experience','cultural'], 0.85, 0.7),
+  ev('Laboratorio Ceramica Medievale', 'Corso introduttivo alla ceramica in stile medievale folignate. Materiali inclusi.', T1, h(15), 'Laboratorio Artigianale, Via Garibaldi, Foligno', 42.9530, 12.7019, 35, ['cultural','chill','experience'], 0.2, 0.5),
+  ev('Aperitivo con Vista a Trevi', 'Il miglior aperitivo dell\'Umbria con panorama sulla Valle Umbra illuminata.', T1, h(18), 'Piazza Mazzini, Trevi', 42.8770, 12.7469, 10, ['food','chill','social'], 0.2, 0.75),
+  ev('Concerto Corale', 'Coro polifonico San Feliciano: brani rinascimentali e contemporanei nel Duomo di Foligno.', T1, h(21), 'Cattedrale di San Feliciano, Foligno', 42.9540, 12.7025, 0, ['cultural','music','chill'], 0.1, 0.5),
 
-  // ── SABATO (weekend) ─────────────────────────────────────────────────────
-  ev('Mercato di Porta Portese', 'Il mercato più grande della città. Vintage, antiquariato, rarità.', SAT, h(8), 'Foro Buonaparte, Milano', 45.470, 9.180, 0, ['cultural','experience','chill'], 0.3, 0.6),
-  ev('Trekking Urbano', 'Esplora la Milano nascosta a piedi. 10km con guida esperta.', SAT, h(10), 'Stazione Centrale (piazza)', 45.486, 9.205, 15, ['energetic','cultural','experience'], 0.8, 0.7),
-  ev('Brunch con Vista', 'Brunch al rooftop con buffet illimitato e musica live.', SAT, h(11), 'Rooftop Excelsior Hotel, Milano', 45.471, 9.193, 38, ['food','social','chill'], 0.3, 0.8),
-  ev('Festival Elettronico', 'Headliner internazionale + 5 act locali. Parco Sempione.', SAT, h(17), 'Parco Sempione, Milano', 45.476, 9.172, 35, ['music','nightlife','energetic'], 1.0, 0.9),
-  ev('Tour in Bicicletta', 'Giro guidato dei quartieri emergenti con bike vintage. Max 15 persone.', SAT, h(10), 'Noleggio Bici Duomo, Milano', 45.464, 9.191, 20, ['energetic','cultural','experience'], 0.7, 0.65),
-  ev('Workshop Cocktail', 'Impara 3 cocktail signature dal bartender del miglior bar di Milano.', SAT, h(17), 'The Spirit Bar, Brera', 45.474, 9.185, 50, ['food','social','experience'], 0.5, 0.85),
-  ev('Mercato Vinili', 'Swap & shop di dischi vinili. 60+ espositori. Ingresso libero.', SAT, h(10), 'Circolo Magnolia, Milano', 45.479, 9.267, 0, ['music','cultural','chill'], 0.2, 0.55),
-  ev('Padel Tournament', 'Torneo amatoriale di padel. Coppie miste. Iscrizioni entro venerdì.', SAT, h(9), 'Padel Center Forlanini, Milano', 45.447, 9.237, 25, ['energetic','social'], 0.95, 0.8),
-  ev('Visita Notturna Duomo', 'Apertura straordinaria del Duomo alle 22. Atmosfera unica.', SAT, h(22), 'Duomo di Milano', 45.464, 9.192, 15, ['cultural','experience'], 0.2, 0.5),
-  ev('Pop-Up Restaurant', 'Chef stellato in location segreta. Menu degustazione 7 portate.', SAT, h(20), 'Rivelata 48h prima via email', 45.464, 9.186, 120, ['food','experience'], 0.4, 0.6),
-  ev('Silent Disco', 'Tre canali, una pista, nessun amplificatore. Cuffie in dotazione.', SAT, h(23), 'Magazzini Generali, Milano', 45.447, 9.190, 15, ['nightlife','music','social'], 0.9, 0.95),
+  // ── SABATO ────────────────────────────────────────────────────────────────
+  ev('Gara Podistica Valle Umbra', 'Corsa non competitiva 10km. Partenza da Foligno, arrivo a Spello. T-shirt inclusa.', SAT, h(9), 'Piazza Garibaldi, Foligno', 42.9520, 12.7015, 12, ['energetic','social'], 0.95, 0.75),
+  ev('Mercato Contadino di Campagna Amica', 'Prodotti a km0 di 40 aziende agricole umbre. Degustazioni gratuite.', SAT, h(8), 'Parcheggio Ex Zuccherificio, Foligno', 42.9480, 12.7000, 0, ['food','chill','social'], 0.25, 0.65),
+  ev('Visita al Tempio del Clitunno', 'Visita guidata al sito UNESCO Tempio del Clitunno con esperto di storia romana.', SAT, h(10), 'Tempio del Clitunno, Campello sul Clitunno', 42.8230, 12.7230, 10, ['cultural','experience'], 0.2, 0.5),
+  ev('Festival Street Food Umbria', 'Oltre 30 stand di street food regionale. Porchetta, torta al testo, crescia.', SAT, h(12), 'Viale Umbria, Foligno', 42.9500, 12.7040, 0, ['food','social','energetic'], 0.55, 0.85),
+  ev('Workshop Olio EVO', 'Impara ad assaggiare e distinguere gli oli extravergini DOP umbri con esperto oleario.', SAT, h(17), 'Frantoio Gaudenzi, Trevi', 42.8770, 12.7469, 30, ['food','experience','cultural'], 0.25, 0.6),
+  ev('Concerto Rock al Pub Britannia', 'Tre band locali: apertura ore 21, headliner ore 23. Ingresso con tessera.', SAT, h(21), 'Pub Britannia, Via Mazzini, Foligno', 42.9533, 12.7021, 8, ['music','nightlife','energetic'], 0.9, 0.85),
+  ev('Escursione Notturna Monte Subasio', 'Trekking notturno sul Monte Subasio con guida. Torce frontali fornite. Max 15 persone.', SAT, h(20), 'Parcheggio Eremo delle Carceri, Assisi', 43.0707, 12.6176, 18, ['energetic','experience'], 0.8, 0.65),
+  ev('Cena in Cantina a Montefalco', 'Cena tradizionale umbra direttamente in cantina con abbinamento Sagrantino DOCG.', SAT, h(20), 'Cantina Arnaldo Caprai, Montefalco', 42.8935, 12.6517, 55, ['food','experience','chill'], 0.3, 0.7),
 
-  // ── DOMENICA (weekend) ───────────────────────────────────────────────────
-  ev('Yoga nel Parco', 'Sessione di hatha yoga al mattino. Porta il tuo tappetino.', SUN, h(9), 'Parco Sempione, Milano', 45.476, 9.172, 0, ['chill','experience'], 0.1, 0.4),
-  ev('Mostra Frida Kahlo', 'Ultima settimana! Biglietti last-minute disponibili.', SUN, h(10), 'Palazzo Reale, Milano', 45.463, 9.192, 16, ['cultural'], 0.2, 0.4),
-  ev('Pranzo in Vigna', 'Pranzo rustico tra le vigne con vino locale incluso. Transfer da Milano.', SUN, h(12), 'Tenuta Mazzolino, Oltrepò', 45.122, 9.283, 65, ['food','chill','experience'], 0.2, 0.7),
-  ev('Bootcamp Domenicale', 'Allenamento HIIT all\'aperto. Tutti i livelli benvenuti.', SUN, h(10), 'Parco Trenno, Milano', 45.488, 9.116, 10, ['energetic'], 1.0, 0.6),
-  ev('Aperitivo in Barca', 'Navigazione sui Navigli con aperitivo a bordo. Posti limitatissimi.', SUN, h(17), 'Darsena, Milano', 45.449, 9.173, 30, ['social','chill','experience'], 0.3, 0.9),
-  ev('Concerto Sinfonico', 'Orchestra Verdi esegue Beethoven. Ultimo appuntamento della stagione.', SUN, h(16), 'Auditorium di Milano', 45.455, 9.172, 22, ['cultural','music'], 0.1, 0.5),
-  ev('Beer Garden Domenica', 'Garden party con 20 birre alla spina, grill e live band country.', SUN, h(14), 'BASE Milano, Via Bergognone', 45.452, 9.177, 0, ['food','social','music'], 0.6, 0.9),
-  ev('Escape the City', 'Gioco di ruolo urbano: risolvi il mistero prima del tramonto. Squadre di 4.', SUN, h(15), 'Piazza della Repubblica, Milano', 45.484, 9.198, 20, ['experience','energetic','social'], 0.8, 0.85),
+  // ── DOMENICA ─────────────────────────────────────────────────────────────
+  ev('Passeggiata tra gli Ulivi', 'Camminata lenta tra i secolari uliveti della Valle Umbra. Guida naturalistica.', SUN, h(9), 'Frantoio di Spello', 42.9901, 12.6737, 8, ['chill','experience','cultural'], 0.15, 0.4),
+  ev('Brunch Domenicale al Relais', 'Brunch con prodotti locali a chilometro zero. Prenotazione obbligatoria.', SUN, h(11), 'Relais La Corte di Bettona, Bettona', 43.0127, 12.4884, 28, ['food','chill','social'], 0.2, 0.7),
+  ev('Pedalata tra i Borghi', 'Cicloturismo 35km: Foligno → Spello → Assisi → Bastia Umbra. E-bike disponibili.', SUN, h(9), 'Noleggio Bici Foligno, Via Flaminia', 42.9540, 12.7060, 20, ['energetic','experience','cultural'], 0.75, 0.65),
+  ev('Antichi Sapori di Bevagna', 'Sagra dei legumi e dei cereali medievali: farro, roveja, cicerchia. Con degustazione.', SUN, h(12), 'Piazza Silvestri, Bevagna', 42.9254, 12.6084, 5, ['food','cultural','chill'], 0.3, 0.7),
+  ev('Concerto Pomeridiano', 'Quartetto d\'archi presso la Chiesa di Santa Maria Infraportas. Ingresso libero.', SUN, h(17), 'Chiesa S. Maria Infraportas, Foligno', 42.9545, 12.7010, 0, ['cultural','music','chill'], 0.1, 0.45),
+  ev('Escursione alle Cascate di Rasiglia', 'Percorso naturalistico alle sorgenti e cascate di Rasiglia (frazione di Foligno).', SUN, h(10), 'Rasiglia, Foligno', 42.9162, 12.8060, 0, ['energetic','experience','chill'], 0.6, 0.5),
+  ev('Aperitivo del Tramonto a Montefalco', 'La "Ringhiera dell\'Umbria": aperitivo panoramico con vista su cinque province.', SUN, h(18), 'Torre Comunale, Montefalco', 42.8935, 12.6517, 10, ['chill','food','social'], 0.2, 0.7),
 
-  // ── TRA DUE GIORNI (T2) ───────────────────────────────────────────────────
-  ev('Serata Quiz Trivia', 'Gran finale stagionale del pub quiz più amato di Milano. Premi in palio.', T2, h(20), 'The Dublin Inn, Milano', 45.458, 9.183, 5, ['social','experience'], 0.6, 1.0),
-  ev('Cena Degustazione Siciliana', 'Chef siciliano prepara un menù tipico a 6 portate con vini abbinati.', T2, h(20), 'Osteria dei Siciliani, Milano', 45.462, 9.188, 55, ['food','experience','cultural'], 0.3, 0.7),
-  ev('Climbing Indoor', 'Serata di boulder per tutti i livelli. Istruttore disponibile per principianti.', T2, h(18), 'Climb Milano, Lambrate', 45.478, 9.233, 15, ['energetic','experience','social'], 0.9, 0.7),
+  // ── TRA 2 GIORNI ─────────────────────────────────────────────────────────
+  ev('Serata Quiz sulla Storia di Foligno', 'Pub quiz dedicato alla storia e tradizioni del folignate. Premi per i top 3.', T2, h(20), 'Osteria del Bacco, Via Roma, Foligno', 42.9532, 12.7022, 5, ['social','cultural','experience'], 0.55, 0.9),
+  ev('Corso Introduttivo all\'Arrampicata', 'Serata di bouldering per principianti con istruttore CAI. Materiale fornito.', T2, h(18), 'Palestra di Arrampicata, Via dell\'Industria, Foligno', 42.9490, 12.7080, 12, ['energetic','experience','social'], 0.9, 0.7),
+  ev('Cena con Delitto al Palazzo', 'Cena interattiva in stile medievale con mistero da risolvere. Menù 4 portate incluso.', T2, h(20), 'Palazzo Deli, Foligno', 42.9542, 12.7028, 48, ['experience','social','cultural'], 0.6, 0.9),
 ];
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -131,46 +128,25 @@ async function main() {
   if (shouldClear) {
     console.log('🗑️  Eliminazione eventi esistenti...');
     const snap = await db.collection('events').get();
-    const batches = [];
-    let batch = db.batch();
-    let count = 0;
-    snap.docs.forEach((doc) => {
-      batch.delete(doc.ref);
-      count++;
-      if (count % 500 === 0) { batches.push(batch); batch = db.batch(); }
-    });
-    batches.push(batch);
-    await Promise.all(batches.map((b) => b.commit()));
+    let batch = db.batch(); let count = 0;
+    snap.docs.forEach((doc) => { batch.delete(doc.ref); count++; });
+    if (count > 0) await batch.commit();
     console.log(`   Eliminati ${snap.size} eventi.`);
   }
 
-  console.log(`\n📅 Date usate:`);
-  console.log(`   Oggi:     ${T}`);
-  console.log(`   Domani:   ${T1}`);
-  console.log(`   Sabato:   ${SAT}`);
-  console.log(`   Domenica: ${SUN}`);
-  console.log(`   Tra 2gg:  ${T2}`);
-  console.log(`\n⏰ Orari last-minute: ${nextHours(1)} e ${nextHours(2)}`);
+  console.log(`\n📍 Zona: Foligno (PG) e dintorni`);
+  console.log(`📅 Date: Oggi=${T} | Sabato=${SAT} | Domenica=${SUN}\n`);
+  console.log(`🌱 Inserimento ${EVENTS.length} eventi...`);
 
-  console.log(`\n🌱 Inserimento ${EVENTS.length} eventi...`);
-
-  // Batch writes (max 500 per batch)
-  let batch = db.batch();
-  let i = 0;
+  let batch = db.batch(); let i = 0;
   for (const event of EVENTS) {
-    const ref = db.collection('events').doc(event.id);
-    batch.set(ref, event);
+    batch.set(db.collection('events').doc(event.id), event);
     i++;
-    if (i % 500 === 0) {
-      await batch.commit();
-      batch = db.batch();
-    }
+    if (i % 500 === 0) { await batch.commit(); batch = db.batch(); }
   }
   await batch.commit();
 
-  console.log(`✅ ${EVENTS.length} eventi inseriti con successo!\n`);
-
-  // Summary by context
+  console.log(`✅ ${EVENTS.length} eventi inseriti!\n`);
   const byDate = {};
   EVENTS.forEach((e) => { byDate[e.date] = (byDate[e.date] || 0) + 1; });
   Object.entries(byDate).sort().forEach(([d, n]) => console.log(`   ${d}: ${n} eventi`));
