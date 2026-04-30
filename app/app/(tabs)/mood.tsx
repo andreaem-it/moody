@@ -7,18 +7,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { VIBES } from '../../constants/vibes';
+import ContextSelector from '../../components/ContextSelector';
 import EventCard from '../../components/EventCard';
 import { fetchFeed } from '../../services/api';
 import type { Event, ContextMode, FeedbackType } from '../../services/api';
 import { useDeviceId } from '../../hooks/useDeviceId';
 
 type Vibe = keyof typeof VIBES;
-
-const MOOD_QUESTIONS = [
-  { label: 'Stasera', context: 'tonight'     as ContextMode },
-  { label: 'Weekend', context: 'weekend'     as ContextMode },
-  { label: 'Subito',  context: 'last-minute' as ContextMode },
-];
 
 export default function MoodScreen() {
   const insets = useSafeAreaInsets();
@@ -64,21 +59,8 @@ export default function MoodScreen() {
         <Text style={styles.subtitle}>Filtra gli eventi per vibe</Text>
       </View>
 
-      {/* Context pills */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.contextRow}>
-        {MOOD_QUESTIONS.map((q) => {
-          const isActive = context === q.context;
-          return (
-            <Pressable
-              key={q.context}
-              style={[styles.ctxPill, isActive && styles.ctxPillActive]}
-              onPress={() => setContext(q.context)}
-            >
-              <Text style={[styles.ctxLabel, isActive && styles.ctxLabelActive]}>{q.label}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      {/* Context selector — stesso componente della Home */}
+      <ContextSelector active={context} onChange={setContext} />
 
       {/* Vibe selector */}
       <View style={styles.vibeSection}>
@@ -148,12 +130,6 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 },
   title: { fontSize: 28, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
   subtitle: { fontSize: 14, color: Colors.textSecondary, marginTop: 2 },
-
-  contextRow: { paddingHorizontal: 20, paddingVertical: 10, gap: 8, alignItems: 'flex-start' },
-  ctxPill: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 99, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.surface },
-  ctxPillActive: { backgroundColor: Colors.accentDim, borderColor: Colors.accent },
-  ctxLabel: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
-  ctxLabelActive: { color: Colors.accentLight },
 
   vibeSection: { paddingBottom: 4 },
   sectionLabel: { fontSize: 11, fontWeight: '700', color: Colors.textTertiary, letterSpacing: 1, paddingHorizontal: 20, marginBottom: 8 },
