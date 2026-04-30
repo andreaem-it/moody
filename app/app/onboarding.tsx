@@ -442,7 +442,7 @@ interface LogoAnimatedRef {
 
 const LogoAnimated = React.forwardRef<LogoAnimatedRef>(function LogoAnimated(_, ref) {
   const scale    = useRef(new Animated.Value(1)).current;
-  const opacity  = useRef(new Animated.Value(0.78)).current;
+  const opacity  = useRef(new Animated.Value(0.45)).current;
   const rotation = useRef(new Animated.Value(0)).current;
   const loopAnim = useRef<Animated.CompositeAnimation | null>(null);
 
@@ -463,7 +463,7 @@ const LogoAnimated = React.forwardRef<LogoAnimatedRef>(function LogoAnimated(_, 
         ]),
         Animated.parallel([
           Animated.timing(scale,   { toValue: 1.0,  duration: 2000, useNativeDriver: true }),
-          Animated.timing(opacity, { toValue: 0.78, duration: 2000, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0.45, duration: 2000, useNativeDriver: true }),
         ]),
       ]),
     );
@@ -493,7 +493,7 @@ const LogoAnimated = React.forwardRef<LogoAnimatedRef>(function LogoAnimated(_, 
       Animated.parallel([
         Animated.timing(rotation, { toValue: 0,    duration: 500, useNativeDriver: true }),
         Animated.spring(scale,    { toValue: 1,    friction: 5, tension: 80, useNativeDriver: true }),
-        Animated.timing(opacity,  { toValue: 0.78, duration: 400, useNativeDriver: true }),
+        Animated.timing(opacity,  { toValue: 0.45, duration: 400, useNativeDriver: true }),
       ]).start(() => startIdle());
     },
   }), [rotation, scale, opacity, startIdle]);
