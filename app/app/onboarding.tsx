@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   ScrollView, Animated, Dimensions, ActivityIndicator,
-  TextInput, KeyboardAvoidingView, Platform,
+  TextInput, KeyboardAvoidingView, Platform, Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -217,7 +217,7 @@ export default function OnboardingScreen() {
         {/* ── Step 0: Benvenuto ── */}
         <StepWrap>
           <View style={styles.iconWrap}>
-            <Ionicons name={STEP_ICONS.benvenuto} size={48} color={Colors.accent} />
+            <LogoAnimated />
           </View>
           <Text style={styles.stepTitle}>Ciao! Sono Moody.</Text>
           <Text style={styles.stepSub}>
@@ -415,6 +415,42 @@ const lv = StyleSheet.create({
   labels:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   label:   { fontSize: 11, color: Colors.textTertiary },
   current: { fontSize: 13, fontWeight: '700' },
+});
+
+// ─── LogoAnimated ─────────────────────────────────────────────────────────────
+
+function LogoAnimated() {
+  const scale   = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(0.88)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(scale,   { toValue: 1.045, duration: 2200, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 1.0,   duration: 2200, useNativeDriver: true }),
+        ]),
+        Animated.parallel([
+          Animated.timing(scale,   { toValue: 1.0,  duration: 2200, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0.88, duration: 2200, useNativeDriver: true }),
+        ]),
+      ]),
+    ).start();
+  }, [scale, opacity]);
+
+  return (
+    <Animated.View style={{ transform: [{ scale }], opacity }}>
+      <Image
+        source={require('../assets/moody_solo_1024.png')}
+        style={la.logo}
+        resizeMode="contain"
+      />
+    </Animated.View>
+  );
+}
+
+const la = StyleSheet.create({
+  logo: { width: 160, height: 160 },
 });
 
 // ─── StepWrap ─────────────────────────────────────────────────────────────────
