@@ -4,6 +4,7 @@ import {
   ScrollView, Animated, Dimensions, ActivityIndicator,
   TextInput, KeyboardAvoidingView, Platform, Image, Keyboard,
 } from 'react-native';
+import { isWeb } from '../utils/platform';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -499,11 +500,27 @@ const LogoAnimated = React.forwardRef<LogoAnimatedRef>(function LogoAnimated(_, 
   }), [rotation, scale, opacity, startIdle]);
 
   return (
-    <Animated.View style={[la.container, { transform: [{ scale }, { rotate: rotateStr }], opacity, marginBottom: 50 }]}>
-      {/* Outer glow rings — dal più grande al più piccolo */}
-      <View style={[la.glow, la.glow3]} />
-      <View style={[la.glow, la.glow2]} />
-      <View style={[la.glow, la.glow1]} />
+    <Animated.View
+      style={[la.container, {
+        transform: [{ scale }, { rotate: rotateStr }],
+        opacity,
+        marginBottom: 50,
+        // overflow visible: permette al glow sfumato di fuoriuscire dai bordi
+        overflow: 'visible',
+      }]}
+    >
+      {/* Glow esterno — più grande, più diffuso */}
+      <View style={[la.glowBase, la.glowOuter,
+        isWeb
+          ? ({ filter: 'blur(48px)' } as any)
+          : { shadowColor: Colors.accent, shadowOpacity: 0.55, shadowRadius: 48, shadowOffset: { width: 0, height: 0 } }
+      ]} />
+      {/* Glow interno — più brillante, più concentrato */}
+      <View style={[la.glowBase, la.glowInner,
+        isWeb
+          ? ({ filter: 'blur(28px)' } as any)
+          : { shadowColor: Colors.accentLight, shadowOpacity: 0.7, shadowRadius: 28, shadowOffset: { width: 0, height: 0 } }
+      ]} />
       <Image
         source={require('../assets/moody_solo_1024.png')}
         style={la.logo}
@@ -515,19 +532,28 @@ const LogoAnimated = React.forwardRef<LogoAnimatedRef>(function LogoAnimated(_, 
 
 const la = StyleSheet.create({
   container: {
-    width: 280,
-    height: 280,
+    width: 160,
+    height: 160,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  glow: {
+  glowBase: {
     position: 'absolute',
     borderRadius: 999,
   },
-  glow1: { width: 200, height: 200, backgroundColor: Colors.accentLight + '30' },
-  glow2: { width: 238, height: 238, backgroundColor: Colors.accent      + '1C' },
-  glow3: { width: 278, height: 278, backgroundColor: Colors.accent      + '0D' },
-  logo:  { width: 160, height: 160 },
+  glowOuter: {
+    width: 240,
+    height: 240,
+    backgroundColor: Colors.accent + 'AA',     // ~67% opacity base
+    opacity: 0.4,
+  },
+  glowInner: {
+    width: 185,
+    height: 185,
+    backgroundColor: Colors.accentLight + 'CC', // ~80% opacity base
+    opacity: 0.55,
+  },
+  logo: { width: 160, height: 160 },
 });
 
 // ─── StepWrap ─────────────────────────────────────────────────────────────────
