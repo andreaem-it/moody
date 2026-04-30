@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useImperativeHandle } 
 import {
   View, Text, TouchableOpacity, StyleSheet,
   ScrollView, Animated, Dimensions, ActivityIndicator,
-  TextInput, KeyboardAvoidingView, Platform, Image,
+  TextInput, KeyboardAvoidingView, Platform, Image, Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -140,6 +140,7 @@ export default function OnboardingScreen() {
   const logoRef = useRef<LogoAnimatedRef>(null);
 
   function goNext() {
+    Keyboard.dismiss();
     const next = STEPS[stepIdx + 1];
     if (!next) { finish(); return; }
 
@@ -157,7 +158,12 @@ export default function OnboardingScreen() {
 
   function goBack() {
     if (stepIdx === 0) return;
+    Keyboard.dismiss();
     const prev = STEPS[stepIdx - 1];
+    // Resetta e avvia l'animazione di ingresso del logo prima di scorrere
+    if (prev === 'benvenuto') {
+      logoRef.current?.playEnter();
+    }
     Animated.timing(slideX, { toValue: -(stepIdx - 1) * SCREEN_W, duration: 300, useNativeDriver: true }).start();
     setStep(prev);
   }
@@ -430,7 +436,8 @@ const lv = StyleSheet.create({
 // ─── LogoAnimated ─────────────────────────────────────────────────────────────
 
 interface LogoAnimatedRef {
-  playExit: (onDone: () => void) => void;
+  playExit:  (onDone: () => void) => void;
+  playEnter: () => void;
 }
 
 const LogoAnimated = React.forwardRef<LogoAnimatedRef>(function LogoAnimated(_, ref) {
@@ -439,9 +446,15 @@ const LogoAnimated = React.forwardRef<LogoAnimatedRef>(function LogoAnimated(_, 
   const rotation = useRef(new Animated.Value(0)).current;
   const loopAnim = useRef<Animated.CompositeAnimation | null>(null);
 
-  const rotateStr = rotation.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  // inputRange [-1,0,1] → ['-360deg','0deg','360deg']:
+  //   exit usa 0→1 (senso orario), enter usa -1→0 (antiorario → stessa direzione visiva)
+  const rotateStr = rotation.interpolate({
+    inputRange:  [-1, 0, 1],
+    outputRange: ['-360deg', '0deg', '360deg'],
+  });
 
-  useEffect(() => {
+  const startIdle = useCallback(() => {
+    loopAnim.current?.stop();
     loopAnim.current = Animated.loop(
       Animated.sequence([
         Animated.parallel([
@@ -455,19 +468,35 @@ const LogoAnimated = React.forwardRef<LogoAnimatedRef>(function LogoAnimated(_, 
       ]),
     );
     loopAnim.current.start();
-    return () => { loopAnim.current?.stop(); };
   }, [scale, opacity]);
+
+  useEffect(() => {
+    startIdle();
+    return () => { loopAnim.current?.stop(); };
+  }, [startIdle]);
 
   useImperativeHandle(ref, () => ({
     playExit: (onDone: () => void) => {
       loopAnim.current?.stop();
       Animated.parallel([
-        Animated.timing(rotation, { toValue: 1,   duration: 500, useNativeDriver: true }),
-        Animated.timing(scale,    { toValue: 0,   duration: 500, useNativeDriver: true }),
-        Animated.timing(opacity,  { toValue: 0,   duration: 300, useNativeDriver: true }),
+        Animated.timing(rotation, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.timing(scale,    { toValue: 0, duration: 500, useNativeDriver: true }),
+        Animated.timing(opacity,  { toValue: 0, duration: 300, useNativeDriver: true }),
       ]).start(() => onDone());
     },
-  }));
+    playEnter: () => {
+      loopAnim.current?.stop();
+      // Parte da invisibile e ruotato di -360° (antiorario)
+      rotation.setValue(-1);
+      scale.setValue(0);
+      opacity.setValue(0);
+      Animated.parallel([
+        Animated.timing(rotation, { toValue: 0,    duration: 500, useNativeDriver: true }),
+        Animated.spring(scale,    { toValue: 1,    friction: 5, tension: 80, useNativeDriver: true }),
+        Animated.timing(opacity,  { toValue: 0.78, duration: 400, useNativeDriver: true }),
+      ]).start(() => startIdle());
+    },
+  }), [rotation, scale, opacity, startIdle]);
 
   return (
     <Animated.View style={{ transform: [{ scale }, { rotate: rotateStr }], opacity, marginBottom: 50 }}>
