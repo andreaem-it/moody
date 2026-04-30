@@ -499,7 +499,11 @@ const LogoAnimated = React.forwardRef<LogoAnimatedRef>(function LogoAnimated(_, 
   }), [rotation, scale, opacity, startIdle]);
 
   return (
-    <Animated.View style={{ transform: [{ scale }, { rotate: rotateStr }], opacity, marginBottom: 50 }}>
+    <Animated.View style={[la.container, { transform: [{ scale }, { rotate: rotateStr }], opacity, marginBottom: 50 }]}>
+      {/* Outer glow rings — dal più grande al più piccolo */}
+      <View style={[la.glow, la.glow3]} />
+      <View style={[la.glow, la.glow2]} />
+      <View style={[la.glow, la.glow1]} />
       <Image
         source={require('../assets/moody_solo_1024.png')}
         style={la.logo}
@@ -510,7 +514,20 @@ const LogoAnimated = React.forwardRef<LogoAnimatedRef>(function LogoAnimated(_, 
 });
 
 const la = StyleSheet.create({
-  logo: { width: 160, height: 160 },
+  container: {
+    width: 280,
+    height: 280,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  glow: {
+    position: 'absolute',
+    borderRadius: 999,
+  },
+  glow1: { width: 200, height: 200, backgroundColor: Colors.accentLight + '30' },
+  glow2: { width: 238, height: 238, backgroundColor: Colors.accent      + '1C' },
+  glow3: { width: 278, height: 278, backgroundColor: Colors.accent      + '0D' },
+  logo:  { width: 160, height: 160 },
 });
 
 // ─── StepWrap ─────────────────────────────────────────────────────────────────
