@@ -20,6 +20,7 @@ const { normalize }                     = require('./normalizer');
 const { geocodeBatch }                  = require('./geocoder');
 const { checkDuplicate }                = require('./deduplicator');
 const { fetchFeed: fetchRss }           = require('./adapters/rssAdapter');
+const { fetchEventbrite }               = require('./adapters/eventbriteAdapter');
 const { AGGREGATOR_SOURCES }            = require('../../config/aggregatorSources');
 const eventRepository                   = require('../../repositories/eventRepository');
 const { enrichEvent }                   = require('../enrichmentService');
@@ -28,7 +29,7 @@ const { enrichEvent }                   = require('../enrichmentService');
 
 const ADAPTERS = {
   rss:        fetchRss,
-  // eventbrite: fetchEventbrite,  // da aggiungere quando disponibile la API key
+  eventbrite: fetchEventbrite,
 };
 
 // ─── Cache eventi Firestore per data ─────────────────────────────────────────

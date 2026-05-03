@@ -72,18 +72,21 @@ const AGGREGATOR_SOURCES = [
   },
 
   // ── Eventbrite — region Umbria (richiede EVENTBRITE_API_KEY in .env) ─────────
-  // {
-  //   name:       'eventbrite-umbria',
-  //   type:       'eventbrite',
-  //   sourceType: 'eventbrite',
-  //   url:        'https://www.eventbriteapi.com/v3/events/search/',
-  //   enabled:    !!process.env.EVENTBRITE_API_KEY,
-  //   params: {
-  //     'location.address':         'Foligno, Umbria, Italia',
-  //     'location.within':          '50km',
-  //     'start_date.range_start':   new Date().toISOString(),
-  //   },
-  // },
+  // Per abilitare: ottieni il token su https://www.eventbrite.com/platform/
+  // e aggiungi EVENTBRITE_API_KEY=<token> nel file backend/.env
+  {
+    name:       'eventbrite-umbria',
+    type:       'eventbrite',
+    sourceType: 'eventbrite',
+    url:        'https://www.eventbriteapi.com/v3/events/search/',
+    enabled:    !!process.env.EVENTBRITE_API_KEY,
+    defaultLocation: 'Umbria, Italia',
+    params: {
+      'location.address':         'Foligno, Umbria, Italia',
+      'location.within':          '50km',
+      'start_date.range_start':   new Date().toISOString(),
+    },
+  },
 ];
 
 module.exports = { AGGREGATOR_SOURCES };

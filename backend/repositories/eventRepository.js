@@ -58,6 +58,16 @@ const eventRepository = {
     return _parse(snap);
   },
 
+  /** Ritorna tutti gli eventi pubblicati da un organizzatore specifico. */
+  async findByOrganizerId(organizerId) {
+    const snap = await getDb()
+      .collection(COL)
+      .where('organizerId', '==', organizerId)
+      .orderBy('date', 'desc')
+      .get();
+    return snap.docs.map(_parse);
+  },
+
   /** Ritorna tutti gli eventi per una data specifica (YYYY-MM-DD). Usato dal deduplicator. */
   async findByDate(dateStr) {
     const snap = await getDb()
@@ -133,7 +143,7 @@ const eventRepository = {
     return snap.docs.map(_parse);
   },
 
-  async create({ title, description, date, time, location, latitude, longitude, price, vibes = [], energyScore = 0.5, socialScore = 0.5, sourceType = 'manual', sourceUrl = null, rawText = null }) {
+  async create({ title, description, date, time, location, latitude, longitude, price, vibes = [], energyScore = 0.5, socialScore = 0.5, sourceType = 'manual', sourceUrl = null, rawText = null, organizerId = null }) {
     const id        = uuidv4();
     const now       = new Date().toISOString();
     const eventHash = _normalizeHash(title, date, location);
@@ -151,6 +161,7 @@ const eventRepository = {
       sourceType,
       sourceUrl:      sourceUrl   ?? null,
       rawText:        rawText     ?? null,
+      organizerId:    organizerId ?? null,
       eventHash,
       popularityBoost: 0,
       createdAt: now,
@@ -174,7 +185,7 @@ const eventRepository = {
     const allowed = [
       'title', 'description', 'date', 'time', 'location',
       'latitude', 'longitude', 'price', 'vibes',
-      'energyScore', 'socialScore', 'sourceType', 'sourceUrl', 'rawText',
+      'energyScore', 'socialScore', 'sourceType', 'sourceUrl', 'rawText', 'organizerId',
     ];
     const updates = { updatedAt: new Date().toISOString() };
 

@@ -27,6 +27,16 @@ const feedbackRepository = {
     return { id, eventId, userId, type, vibes, createdAt: now };
   },
 
+  /** Conta feedback di un tipo specifico per un evento. Usato nelle stats organizer. */
+  async countByEventAndType(eventId, type) {
+    const snap = await getDb()
+      .collection(COL)
+      .where('eventId', '==', eventId)
+      .where('type',    '==', type)
+      .get();
+    return snap.size;
+  },
+
   /**
    * Counts how many times `userId` has skipped events containing `vibe`.
    * Relies on the denormalized `vibes` array field.

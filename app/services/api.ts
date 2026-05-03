@@ -313,6 +313,98 @@ export async function deletePost(postId: string, userId: string): Promise<void> 
   await client.delete(`/social/posts/${postId}`, { data: { userId } });
 }
 
+// ─── Moody+ (Organizer) ───────────────────────────────────────────────────────
+
+export interface OrganizerProfile {
+  id: string;
+  userId: string;
+  venueName: string;
+  contactName: string;
+  email: string;
+  city: string;
+  description: string | null;
+  plan: 'free';
+  quotaTotal: number;
+  quotaUsed: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrganizerEventStats {
+  id: string;
+  title: string;
+  date: string;
+  time: string;
+  location: string;
+  vibes: string[];
+  sourceUrl: string | null;
+  createdAt: string;
+  stats: { likes: number; skips: number; checkins: number; conversion: number | null };
+}
+
+export interface OrganizerStats {
+  organizer: Pick<OrganizerProfile, 'id' | 'venueName' | 'plan' | 'quotaTotal' | 'quotaUsed'>;
+  events: OrganizerEventStats[];
+  totals: { likes: number; skips: number; checkins: number; conversion: number | null };
+}
+
+export interface SubmissionPackage {
+  id: string;
+  label: string;
+  submissions: number;
+  price: number;
+  pricePerUnit: number;
+}
+
+export async function registerOrganizer(data: {
+  userId: string;
+  venueName: string;
+  contactName: string;
+  email: string;
+  city: string;
+  description?: string;
+}): Promise<OrganizerProfile> {
+  const res = await client.post('/organizers/register', data);
+  return res.data;
+}
+
+export async function fetchOrganizerProfile(userId: string): Promise<OrganizerProfile | null> {
+  try {
+    const res = await client.get(`/organizers/${userId}`);
+    return res.data;
+  } catch (err: any) {
+    if (err?.response?.status === 404) return null;
+    throw err;
+  }
+}
+
+export async function updateOrganizerProfile(
+  userId: string,
+  data: Partial<Pick<OrganizerProfile, 'venueName' | 'contactName' | 'email' | 'city' | 'description'>>,
+): Promise<OrganizerProfile> {
+  const res = await client.put(`/organizers/${userId}`, data);
+  return res.data;
+}
+
+export async function fetchOrganizerStats(userId: string): Promise<OrganizerStats> {
+  const res = await client.get(`/organizers/${userId}/stats`);
+  return res.data;
+}
+
+export async function fetchPackages(): Promise<SubmissionPackage[]> {
+  const res = await client.get('/organizers/packages');
+  return res.data.packages;
+}
+
+export async function requestPackagePurchase(
+  userId: string,
+  packageId: string,
+): Promise<{ message: string; package: SubmissionPackage }> {
+  const res = await client.post(`/organizers/${userId}/purchase`, { packageId });
+  return res.data;
+}
+
 // ─── Upload ──────────────────────────────────────────────────────────────────
 
 export async function uploadEventImage(uri: string): Promise<DraftEvent> {

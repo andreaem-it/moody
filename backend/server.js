@@ -13,7 +13,8 @@ const uploadRouter     = require('./routes/upload');
 const debugRouter      = require('./routes/debug');
 const profileRouter    = require('./routes/profile');
 const socialRouter     = require('./routes/social');
-const aggregatorRouter = require('./routes/aggregator');
+const aggregatorRouter  = require('./routes/aggregator');
+const organizersRouter  = require('./routes/organizers');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -34,7 +35,8 @@ function mountRoutes(router) {
   router.use('/upload',     uploadRouter);
   router.use('/profile',    profileRouter);
   router.use('/social',     socialRouter);
-  router.use('/aggregator', aggregatorRouter);
+  router.use('/aggregator',  aggregatorRouter);
+  router.use('/organizers',  organizersRouter);
   router.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
 
   if (process.env.NODE_ENV !== 'production') {

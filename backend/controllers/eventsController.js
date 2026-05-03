@@ -3,10 +3,11 @@
  * Handles CRUD for events + event detail with live data.
  */
 
-const { enrichEvent }      = require('../services/enrichmentService');
-const eventRepository      = require('../repositories/eventRepository');
-const checkinRepository    = require('../repositories/checkinRepository');
-const moodRepository       = require('../repositories/moodRepository');
+const { enrichEvent }                    = require('../services/enrichmentService');
+const eventRepository                    = require('../repositories/eventRepository');
+const checkinRepository                  = require('../repositories/checkinRepository');
+const moodRepository                     = require('../repositories/moodRepository');
+const { organizerRepository }            = require('../repositories/organizerRepository');
 
 async function listEvents(_req, res, next) {
   try {
@@ -43,10 +44,31 @@ async function createEvent(req, res, next) {
       title, description, date, time, location,
       latitude, longitude, price, vibes = [],
       energyScore, socialScore, sourceType = 'manual', rawText,
+      organizerUserId,  // opzionale: userId dell'organizzatore — abilita quota check
     } = req.body;
 
     if (!title || !date || !time || !location) {
       return res.status(400).json({ error: 'title, date, time and location are required' });
+    }
+
+    // ── Quota check per eventi degli organizzatori ─────────────────────────────
+    let organizerId = null;
+    if (organizerUserId) {
+      const organizer = await organizerRepository.findByUserId(organizerUserId);
+      if (!organizer) {
+        return res.status(403).json({ error: 'Profilo Moody+ non trovato. Registrati prima come organizzatore.' });
+      }
+      if (!organizer.isActive) {
+        return res.status(403).json({ error: 'Account Moody+ sospeso.' });
+      }
+      const quota = await organizerRepository.consumeQuota(organizer.id);
+      if (!quota.success) {
+        return res.status(402).json({
+          error: 'Quota submission esaurita. Acquista un pacchetto per continuare a pubblicare.',
+          quotaExceeded: true,
+        });
+      }
+      organizerId = organizer.id;
     }
 
     const hash     = `${title}${date}${location}`.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -63,7 +85,9 @@ async function createEvent(req, res, next) {
       vibes:       vibes.length ? vibes : enriched.vibes,
       energyScore: energyScore  ?? enriched.energyScore,
       socialScore: socialScore  ?? enriched.socialScore,
-      sourceType,  rawText,
+      sourceType:  organizerId ? 'organizer' : sourceType,
+      rawText,
+      organizerId,
     });
 
     res.status(201).json(created);

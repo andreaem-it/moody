@@ -10,8 +10,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { VIBES } from '../../constants/vibes';
-import { fetchProfile, fetchActivity, updateProfileMeta } from '../../services/api';
-import type { UserProfile, UserActivity } from '../../services/api';
+import { fetchProfile, fetchActivity, updateProfileMeta, fetchOrganizerProfile } from '../../services/api';
+import type { UserProfile, UserActivity, OrganizerProfile } from '../../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDeviceId } from '../../hooks/useDeviceId';
 import { formatHandle, formatFriendCode } from '../../utils/format';
@@ -37,9 +37,10 @@ export default function TuScreen() {
   const insets = useSafeAreaInsets();
   const userId = useDeviceId();
 
-  const [profile, setProfile]   = useState<UserProfile | null>(null);
-  const [activity, setActivity] = useState<UserActivity | null>(null);
-  const [loading, setLoading]   = useState(true);
+  const [profile,    setProfile]    = useState<UserProfile | null>(null);
+  const [activity,   setActivity]   = useState<UserActivity | null>(null);
+  const [organizer,  setOrganizer]  = useState<OrganizerProfile | null | undefined>(undefined);
+  const [loading,    setLoading]    = useState(true);
 
   // Editing state
   const [showNameModal, setShowNameModal] = useState(false);
@@ -50,11 +51,17 @@ export default function TuScreen() {
   const load = useCallback(async () => {
     if (!userId) return;
     try {
-      const [p, a] = await Promise.all([fetchProfile(userId), fetchActivity(userId)]);
+      const [p, a, org] = await Promise.all([
+        fetchProfile(userId),
+        fetchActivity(userId),
+        fetchOrganizerProfile(userId),
+      ]);
       setProfile(p);
       setActivity(a);
+      setOrganizer(org); // null se non ancora registrato
     } catch {
       setProfile(null);
+      setOrganizer(null);
     } finally {
       setLoading(false);
     }
@@ -234,6 +241,48 @@ export default function TuScreen() {
           <StatBlock icon="checkmark-circle" color={Colors.success} value={stats.checkinCount}  label="Check-in"  />
           <StatBlock icon="happy"            color={Colors.fire}    value={stats.moodVoteCount} label="Voti mood" />
         </View>
+
+        {/* ── Moody+ block ── */}
+        {organizer !== undefined && (
+          organizer ? (
+            <TouchableOpacity
+              style={styles.moodyPlusCard}
+              onPress={() => router.push('/organizer/dashboard')}
+              activeOpacity={0.85}
+            >
+              <View style={styles.moodyPlusLeft}>
+                <View style={styles.moodyPlusBadge}>
+                  <Ionicons name="star" size={16} color="#FFB800" />
+                </View>
+                <View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Text style={styles.moodyPlusTitle}>Moody</Text>
+                    <Text style={[styles.moodyPlusTitle, { color: '#FFB800' }]}>+</Text>
+                  </View>
+                  <Text style={styles.moodyPlusSub}>
+                    {organizer.quotaTotal - organizer.quotaUsed} submission rimaste
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#FFB800" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.moodyPlusPromo}
+              onPress={() => router.push('/organizer/register')}
+              activeOpacity={0.85}
+            >
+              <View style={styles.moodyPlusPromoLeft}>
+                <Ionicons name="star-outline" size={20} color="#FFB800" />
+                <View style={{ gap: 2 }}>
+                  <Text style={styles.moodyPlusPromoTitle}>Sei un organizzatore?</Text>
+                  <Text style={styles.moodyPlusPromoSub}>Attiva Moody+ gratis — 100 pubblicazioni incluse</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#FFB80099" />
+            </TouchableOpacity>
+          )
+        )}
 
         {/* ── Preferred vibes ── */}
         <Section title="Le tue vibe">
@@ -491,4 +540,17 @@ const styles = StyleSheet.create({
 
   replayBtn:     { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, marginTop: 4 },
   replayBtnText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
+
+  // Moody+ — utente già registrato
+  moodyPlusCard:  { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFB80010', borderRadius: 16, padding: 14, borderWidth: 1.5, borderColor: '#FFB80055' },
+  moodyPlusLeft:  { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  moodyPlusBadge: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#FFB80022', borderWidth: 1, borderColor: '#FFB80066', alignItems: 'center', justifyContent: 'center' },
+  moodyPlusTitle: { fontSize: 16, fontWeight: '800', color: Colors.text },
+  moodyPlusSub:   { fontSize: 12, color: '#FFB800AA' },
+
+  // Moody+ — promo per chi non è ancora organizzatore
+  moodyPlusPromo:      { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#FFB80033' },
+  moodyPlusPromoLeft:  { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  moodyPlusPromoTitle: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  moodyPlusPromoSub:   { fontSize: 12, color: Colors.textSecondary, lineHeight: 16 },
 });
