@@ -41,6 +41,7 @@ export default function RootLayout() {
             }}
           >
             <Stack.Screen name="(tabs)"      options={{ headerShown: false }} />
+            <Stack.Screen name="organizer"   options={{ headerShown: false }} />
             <Stack.Screen
               name="onboarding"
               options={{ headerShown: false, animation: 'fade' }}
@@ -49,7 +50,8 @@ export default function RootLayout() {
               name="settings"
               options={{
                 title: 'Impostazioni',
-                headerBackTitle: '',
+                headerBackTitle: ' ',
+                headerBackTitleVisible: false,
                 headerStyle: { backgroundColor: Colors.background },
               }}
             />
@@ -57,7 +59,8 @@ export default function RootLayout() {
               name="event/[id]"
               options={{
                 title: 'Evento',
-                headerBackTitle: '',
+                headerBackTitle: ' ',
+                headerBackTitleVisible: false,
                 headerStyle: { backgroundColor: Colors.background },
               }}
             />
