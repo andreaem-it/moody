@@ -7,12 +7,13 @@ const { runMigrations }      = require('./db/migrations');
 const { seedDatabase }       = require('./db/seed');
 const errorHandler           = require('./middleware/errorHandler');
 
-const eventsRouter  = require('./routes/events');
-const feedRouter    = require('./routes/feed');
-const uploadRouter  = require('./routes/upload');
-const debugRouter   = require('./routes/debug');
-const profileRouter = require('./routes/profile');
-const socialRouter  = require('./routes/social');
+const eventsRouter     = require('./routes/events');
+const feedRouter       = require('./routes/feed');
+const uploadRouter     = require('./routes/upload');
+const debugRouter      = require('./routes/debug');
+const profileRouter    = require('./routes/profile');
+const socialRouter     = require('./routes/social');
+const aggregatorRouter = require('./routes/aggregator');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -28,11 +29,12 @@ seedDatabase();
 
 // Routes — montati sia su /api/* (Vercel) che su /* (locale)
 function mountRoutes(router) {
-  router.use('/events',  eventsRouter);
-  router.use('/feed',    feedRouter);
-  router.use('/upload',  uploadRouter);
-  router.use('/profile', profileRouter);
-  router.use('/social',  socialRouter);
+  router.use('/events',     eventsRouter);
+  router.use('/feed',       feedRouter);
+  router.use('/upload',     uploadRouter);
+  router.use('/profile',    profileRouter);
+  router.use('/social',     socialRouter);
+  router.use('/aggregator', aggregatorRouter);
   router.get('/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
 
   if (process.env.NODE_ENV !== 'production') {

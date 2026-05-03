@@ -4,7 +4,7 @@
  * Document structure (collection: 'events'):
  *   id, title, description, date, time, location,
  *   latitude, longitude, price, vibes (array), energyScore,
- *   socialScore, sourceType, rawText, eventHash,
+ *   socialScore, sourceType, sourceUrl, rawText, eventHash,
  *   popularityBoost, createdAt, updatedAt
  */
 
@@ -56,6 +56,15 @@ const eventRepository = {
   async findById(id) {
     const snap = await getDb().collection(COL).doc(id).get();
     return _parse(snap);
+  },
+
+  /** Ritorna tutti gli eventi per una data specifica (YYYY-MM-DD). Usato dal deduplicator. */
+  async findByDate(dateStr) {
+    const snap = await getDb()
+      .collection(COL)
+      .where('date', '==', dateStr)
+      .get();
+    return snap.docs.map(_parse);
   },
 
   async findByHash(hash) {
@@ -124,7 +133,7 @@ const eventRepository = {
     return snap.docs.map(_parse);
   },
 
-  async create({ title, description, date, time, location, latitude, longitude, price, vibes = [], energyScore = 0.5, socialScore = 0.5, sourceType = 'manual', rawText = null }) {
+  async create({ title, description, date, time, location, latitude, longitude, price, vibes = [], energyScore = 0.5, socialScore = 0.5, sourceType = 'manual', sourceUrl = null, rawText = null }) {
     const id        = uuidv4();
     const now       = new Date().toISOString();
     const eventHash = _normalizeHash(title, date, location);
@@ -140,6 +149,7 @@ const eventRepository = {
       energyScore,
       socialScore,
       sourceType,
+      sourceUrl:      sourceUrl   ?? null,
       rawText:        rawText     ?? null,
       eventHash,
       popularityBoost: 0,
@@ -164,7 +174,7 @@ const eventRepository = {
     const allowed = [
       'title', 'description', 'date', 'time', 'location',
       'latitude', 'longitude', 'price', 'vibes',
-      'energyScore', 'socialScore', 'sourceType', 'rawText',
+      'energyScore', 'socialScore', 'sourceType', 'sourceUrl', 'rawText',
     ];
     const updates = { updatedAt: new Date().toISOString() };
 
