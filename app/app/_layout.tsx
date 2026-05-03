@@ -41,7 +41,6 @@ export default function RootLayout() {
             }}
           >
             <Stack.Screen name="(tabs)"      options={{ headerShown: false }} />
-            <Stack.Screen name="organizer"   options={{ headerShown: false }} />
             <Stack.Screen
               name="onboarding"
               options={{ headerShown: false, animation: 'fade' }}
@@ -70,6 +69,37 @@ export default function RootLayout() {
                 title: 'Aggiungi Evento',
                 presentation: 'modal',
                 headerStyle: { backgroundColor: Colors.surface },
+              }}
+            />
+            {/* Moody+ — organizer screens gestite direttamente nel root Stack */}
+            <Stack.Screen
+              name="organizer/register"
+              options={{
+                title: 'Diventa organizzatore',
+                headerBackTitle: ' ',
+                headerBackTitleVisible: false,
+                headerStyle: { backgroundColor: Colors.surface },
+                headerTintColor: Colors.accentLight,
+              }}
+            />
+            <Stack.Screen
+              name="organizer/dashboard"
+              options={{
+                title: 'Moody+',
+                headerBackVisible: false,
+                headerStyle: { backgroundColor: Colors.surface },
+                headerTintColor: Colors.accentLight,
+              }}
+            />
+            <Stack.Screen
+              name="organizer/packages"
+              options={{
+                title: 'Acquista submission',
+                presentation: 'modal',
+                headerBackTitle: ' ',
+                headerBackTitleVisible: false,
+                headerStyle: { backgroundColor: Colors.surface },
+                headerTintColor: Colors.accentLight,
               }}
             />
           </Stack>
