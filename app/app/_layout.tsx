@@ -38,9 +38,21 @@ export default function RootLayout() {
               contentStyle: { backgroundColor: Colors.background },
               headerTitleStyle: { fontWeight: '700', fontSize: 17 },
               animation: 'slide_from_right',
+              // Solo freccia, niente testo accanto al pulsante indietro (iOS / comportamento coerente)
+              headerBackButtonDisplayMode: 'minimal',
+              headerBackTitleVisible: false,
+              headerBackTitle: '',
             }}
           >
-            <Stack.Screen name="(tabs)"      options={{ headerShown: false }} />
+            <Stack.Screen
+              name="(tabs)"
+              options={{
+                headerShown: false,
+                // L'etichetta del back usa il titolo della schermata precedente — evita "(tabs)"
+                title: ' ',
+                headerBackTitle: ' ',
+              }}
+            />
             <Stack.Screen
               name="onboarding"
               options={{ headerShown: false, animation: 'fade' }}
