@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, Image, ActivityIndicator, Alert,
@@ -10,8 +10,9 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { getVibeConfig } from '../constants/vibes';
-import { uploadEventImage, createEvent } from '../services/api';
+import { uploadEventImage, createEvent, fetchOrganizerProfile } from '../services/api';
 import type { DraftEvent } from '../services/api';
+import { useDeviceId } from '../hooks/useDeviceId';
 
 const ALL_VIBES = ['chill', 'social', 'energetic', 'cultural', 'experience', 'food', 'music', 'nightlife'];
 
@@ -40,6 +41,7 @@ function formatDisplayTime(d: Date): string {
 
 export default function UploadScreen() {
   const router = useRouter();
+  const deviceId = useDeviceId();
 
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
@@ -63,6 +65,18 @@ export default function UploadScreen() {
   // Picker visibility — iOS shows inline, Android uses modal pattern
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+
+  const [isMoodyPlus, setIsMoodyPlus] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!deviceId) return;
+      const org = await fetchOrganizerProfile(deviceId).catch(() => null);
+      if (!cancelled) setIsMoodyPlus(!!org);
+    })();
+    return () => { cancelled = true; };
+  }, [deviceId]);
 
   // ── Image ──────────────────────────────────────────────────────────────────
 
@@ -158,12 +172,25 @@ export default function UploadScreen() {
         vibes,
         sourceType: 'ocr',
         rawText: draft?.rawText ?? undefined,
+        ...(isMoodyPlus && deviceId ? { organizerUserId: deviceId } : {}),
       });
       Alert.alert('Evento aggiunto!', 'Il tuo evento è stato salvato.', [
         { text: 'OK', onPress: () => router.back() },
       ]);
-    } catch {
-      Alert.alert('Errore', "Impossibile salvare l'evento. Riprova.");
+    } catch (e: unknown) {
+      const status = typeof e === 'object' && e !== null && 'response' in e
+        ? (e as { response?: { status?: number } }).response?.status
+        : 0;
+      if (status === 402) {
+        Alert.alert(
+          'Quota esaurita',
+          'Acquista altre submission dalla dashboard Moody+ per continuare a pubblicare.',
+        );
+      } else if (status === 403) {
+        Alert.alert('Profilo Moody+', 'Registrati come organizzatore per usare le submission pubbliche.');
+      } else {
+        Alert.alert('Errore', "Impossibile salvare l'evento. Riprova.");
+      }
     } finally {
       setSaving(false);
     }
@@ -182,6 +209,12 @@ export default function UploadScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {isMoodyPlus ? (
+          <View style={styles.moodyPlusBanner}>
+            <Ionicons name="star" size={14} color="#FFB800" />
+            <Text style={styles.moodyPlusBannerText}>Pubblicazione Moody+ · consuma una submission</Text>
+          </View>
+        ) : null}
         {/* Image picker */}
         <TouchableOpacity style={styles.imagePicker} onPress={pickImage} activeOpacity={0.8}>
           {imageUri ? (
@@ -415,6 +448,19 @@ function Field({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   content:   { padding: 20, paddingBottom: 60, gap: 20 },
+  moodyPlusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: '#FFB80012',
+    borderWidth: 1,
+    borderColor: '#FFB80044',
+    marginBottom: -4,
+  },
+  moodyPlusBannerText: { flex: 1, fontSize: 13, fontWeight: '600', color: '#FFB800CC', lineHeight: 18 },
 
   imagePicker:          { borderRadius: 20, overflow: 'hidden', borderWidth: 1.5, borderColor: Colors.border, borderStyle: 'dashed' },
   previewImage:         { width: '100%', height: 220 },

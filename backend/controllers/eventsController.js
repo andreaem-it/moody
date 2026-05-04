@@ -23,6 +23,24 @@ async function listEvents(_req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function searchEvents(req, res, next) {
+  try {
+    const q = typeof req.query.q === 'string' ? req.query.q : '';
+    if (q.trim().length < 2) {
+      return res.json([]);
+    }
+    const events = await eventRepository.searchUpcoming(q);
+    const result = await Promise.all(
+      events.map(async (event) => ({
+        ...event,
+        peopleCount: await checkinRepository.countByEvent(event.id),
+        ...await moodRepository.getBreakdown(event.id),
+      })),
+    );
+    res.json(result);
+  } catch (err) { next(err); }
+}
+
 async function getEvent(req, res, next) {
   try {
     const event = await eventRepository.findById(req.params.id);
@@ -103,4 +121,4 @@ async function deleteEvent(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { listEvents, getEvent, createEvent, deleteEvent };
+module.exports = { listEvents, searchEvents, getEvent, createEvent, deleteEvent };

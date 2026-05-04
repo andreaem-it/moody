@@ -83,6 +83,15 @@ export default function RootLayout() {
                 headerStyle: { backgroundColor: Colors.surface },
               }}
             />
+            <Stack.Screen
+              name="search"
+              options={{
+                title: 'Cerca',
+                headerBackTitle: ' ',
+                headerBackTitleVisible: false,
+                headerStyle: { backgroundColor: Colors.background },
+              }}
+            />
             {/* Moody+ — header e titoli gestiti dallo Stack in organizer/_layout.tsx */}
             <Stack.Screen name="organizer" options={{ headerShown: false }} />
           </Stack>

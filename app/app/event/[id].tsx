@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Alert,
+  StyleSheet, ActivityIndicator, Alert, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -16,6 +16,8 @@ import {
   formatEnergyLabel, formatSocialLabel, formatTimeToEvent,
 } from '../../utils/format';
 import { useDeviceId } from '../../hooks/useDeviceId';
+import { shareEvent } from '../../utils/shareEvent';
+import { openMapsDirections, openMapsQuery } from '../../utils/maps';
 
 // ─── Negative feedback options ────────────────────────────────────────────────
 
@@ -134,7 +136,24 @@ export default function EventDetailScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: event.title }} />
+      <Stack.Screen
+        options={{
+          title:
+            event.title.length > 32
+              ? `${event.title.slice(0, 30)}…`
+              : event.title,
+          headerRight: () => (
+            <TouchableOpacity
+              accessibilityLabel="Condividi evento"
+              onPress={() => shareEvent(event)}
+              style={{ padding: 10, marginRight: 6 }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Ionicons name="share-outline" size={22} color={Colors.text} />
+            </TouchableOpacity>
+          ),
+        }}
+      />
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.content}
@@ -174,6 +193,49 @@ export default function EventDetailScreen() {
           <MetaItem icon="cash-outline"      label={event.price !== null ? formatPrice(event.price) : 'N/D'} />
           <MetaItem icon="flash-outline"     label={`Energia ${formatEnergyLabel(event.energyScore)}`} />
           <MetaItem icon="people-outline"    label={formatSocialLabel(event.socialScore)} />
+        </View>
+
+        {/* Azioni rapide */}
+        <View style={styles.actionRow}>
+          {event.latitude != null && event.longitude != null ? (
+            <TouchableOpacity
+              style={styles.actionPill}
+              onPress={() => openMapsDirections({
+                latitude: event.latitude!, longitude: event.longitude!, label: event.title,
+              })}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="navigate-outline" size={18} color={Colors.accentLight} />
+              <Text style={styles.actionPillText}>Indicazioni</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.actionPill}
+              onPress={() => openMapsQuery(event.location)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="navigate-outline" size={18} color={Colors.accentLight} />
+              <Text style={styles.actionPillText}>Apri su Maps</Text>
+            </TouchableOpacity>
+          )}
+          {event.sourceUrl && /^https?:\/\//i.test(event.sourceUrl) ? (
+            <TouchableOpacity
+              style={[styles.actionPill, styles.actionPillSecondary]}
+              onPress={() => Linking.openURL(event.sourceUrl!).catch(() => {})}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="open-outline" size={18} color={Colors.accentLight} />
+              <Text style={styles.actionPillText}>{/ticket|eventbrite|dice/i.test(event.sourceUrl!) ? 'Biglietti / info' : 'Dettagli'}</Text>
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity
+            style={[styles.actionPill, styles.actionPillSecondary]}
+            onPress={() => shareEvent(event)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="share-social-outline" size={18} color={Colors.accentLight} />
+            <Text style={styles.actionPillText}>Condividi</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Recommendation reason */}
@@ -321,6 +383,28 @@ const styles = StyleSheet.create({
   metaItem:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
   metaIcon:  { width: 22 },
   metaLabel: { fontSize: 14, color: Colors.textSecondary, flex: 1 },
+
+  actionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  actionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: Colors.accentDim,
+    borderWidth: 1,
+    borderColor: Colors.accent + '55',
+  },
+  actionPillSecondary: {
+    backgroundColor: Colors.card,
+    borderColor: Colors.cardBorder,
+  },
+  actionPillText: { fontSize: 14, fontWeight: '700', color: Colors.accentLight },
 
   reasonBox: {
     flexDirection: 'row',

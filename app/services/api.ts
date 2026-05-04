@@ -35,6 +35,9 @@ export interface Event {
   socialScore: number;
   sourceType: string;
   rawText: string | null;
+  /** Link esterno (fonte RSS, ticketing, Moody+ submitter) */
+  sourceUrl?: string | null;
+  organizerId?: string | null;
   createdAt: string;
   updatedAt: string;
   // live data
@@ -87,12 +90,21 @@ export async function fetchEvents(): Promise<Event[]> {
   return res.data;
 }
 
+export async function searchEvents(query: string): Promise<Event[]> {
+  const trimmed = query.trim();
+  if (trimmed.length < 2) return [];
+  const res = await client.get('/events/search', { params: { q: trimmed } });
+  return res.data;
+}
+
 export async function fetchEvent(id: string): Promise<Event> {
   const res = await client.get(`/events/${id}`);
   return res.data;
 }
 
-export async function createEvent(data: Partial<Event>): Promise<Event> {
+export async function createEvent(
+  data: Partial<Event> & { organizerUserId?: string },
+): Promise<Event & { isDuplicate?: boolean }> {
   const res = await client.post('/events', data);
   return res.data;
 }

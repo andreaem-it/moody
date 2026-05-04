@@ -10,6 +10,7 @@ import LiveLayer from './LiveLayer';
 import { formatDate, formatPrice, formatTime, formatTimeToEvent } from '../utils/format';
 import type { Event, FeedbackType } from '../services/api';
 import { sendFeedback } from '../services/api';
+import { shareEvent } from '../utils/shareEvent';
 import { useDeviceId } from '../hooks/useDeviceId';
 
 interface Props {
@@ -122,6 +123,15 @@ export default function EventCard({ event, onFeedback }: Props) {
 
       {/* Quick actions */}
       <View style={styles.actions}>
+        <TouchableOpacity
+          style={[styles.shareBtn]}
+          accessibilityLabel="Condividi"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          onPress={() => { shareEvent(event); }}
+          activeOpacity={0.75}
+        >
+          <Ionicons name="share-outline" size={16} color={Colors.textSecondary} />
+        </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionBtn, styles.skipBtn]}
           onPress={() => handleFeedback('skip')}
@@ -241,6 +251,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     marginTop: 4,
+    alignItems: 'stretch',
+  },
+  shareBtn: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   actionBtn: {
     flex: 1,

@@ -118,13 +118,22 @@ export default function FeedScreen() {
           <Text style={styles.logo}>Moody</Text>
           <Text style={styles.subtitle}>Cosa fare stasera?</Text>
         </View>
-        <TouchableOpacity
-          style={styles.addBtn}
-          onPress={() => router.push('/upload')}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="add" size={24} color={Colors.text} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.headerIconBtn}
+            onPress={() => router.push('/search')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="search" size={22} color={Colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.addBtn}
+            onPress={() => router.push('/upload')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="add" size={24} color={Colors.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Context selector */}
@@ -205,6 +214,17 @@ const styles = StyleSheet.create({
   },
   logo: { fontSize: 32, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
   subtitle: { fontSize: 14, color: Colors.textSecondary, marginTop: 2 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerIconBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: Colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
   addBtn: {
     width: 42,
     height: 42,

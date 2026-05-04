@@ -1,5 +1,5 @@
 const express = require('express');
-const { listEvents, getEvent, createEvent, deleteEvent } = require('../controllers/eventsController');
+const { listEvents, searchEvents, getEvent, createEvent, deleteEvent } = require('../controllers/eventsController');
 const { postFeedback } = require('../controllers/feedbackController');
 const { postCheckin, getCheckins } = require('../controllers/checkinController');
 const { postMood, getMood } = require('../controllers/moodController');
@@ -8,6 +8,7 @@ const router = express.Router();
 
 // Events CRUD
 router.get('/', listEvents);
+router.get('/search', searchEvents);
 router.post('/', createEvent);
 router.get('/:id', getEvent);
 router.delete('/:id', deleteEvent);

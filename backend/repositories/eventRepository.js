@@ -77,6 +77,33 @@ const eventRepository = {
     return snap.docs.map(_parse);
   },
 
+  /**
+   * Ricerca testuale sugli eventi da oggi in poi (max 200 doc, filtro in-memory).
+   * Ogni token di `query` deve comparire nel testo combinato titolo/descrizione/luogo/vibes.
+   */
+  async searchUpcoming(query) {
+    const trimmed = (query || '').trim().toLowerCase();
+    if (trimmed.length < 2) return [];
+    const needles = trimmed.split(/\s+/).filter(Boolean);
+    if (needles.length === 0) return [];
+
+    const today = _todayUtc();
+    const snap = await getDb()
+      .collection(COL)
+      .where('date', '>=', today)
+      .orderBy('date')
+      .orderBy('time')
+      .limit(200)
+      .get();
+
+    return snap.docs
+      .map(_parse)
+      .filter((event) => {
+        const hay = `${event.title} ${event.description ?? ''} ${event.location ?? ''} ${(event.vibes || []).join(' ')}`.toLowerCase();
+        return needles.every((n) => hay.includes(n));
+      });
+  },
+
   async findByHash(hash) {
     const snap = await getDb()
       .collection(COL)
